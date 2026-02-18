@@ -26,7 +26,7 @@ function LineCard({ line, lang }: { line: typeof ORIGINAL_LINES[0]; lang: Langua
         <h2 className="font-semibold text-white text-sm">{t(lang, strings.title)}</h2>
         <span className={`text-xs font-medium shrink-0 ${line.creditClass}`}>{t(lang, strings.credit)}</span>
       </div>
-      <p className="text-xs text-zinc-500 truncate">{t(lang, strings.desc)}</p>
+      <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">{t(lang, strings.desc)}</p>
     </Link>
   )
 }
@@ -64,7 +64,7 @@ export default async function StudioPage() {
               <h2 className="font-semibold text-white text-sm">{t(lang, UI.studio.lines.trending.title)}</h2>
               <span className="text-xs font-medium text-green-400 shrink-0">{t(lang, UI.studio.lines.trending.credit)}</span>
             </div>
-            <p className="text-xs text-zinc-500 truncate">{t(lang, UI.studio.lines.trending.desc)}</p>
+            <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">{t(lang, UI.studio.lines.trending.desc)}</p>
           </Link>
         </div>
       </section>
