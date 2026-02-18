@@ -3,7 +3,7 @@ import type { Language } from '@/types'
 export const UI = {
   // ─── Nav ───────────────────────────────────────────────────────────────────
   nav: {
-    home:        { zh: '主页',     en: 'Home' },
+    home:        { zh: '我的作品', en: 'My Works' },
     studio:      { zh: '内容工厂', en: 'Studio' },
     influencers: { zh: '网红库',   en: 'Influencers' },
     credits:     { zh: '积分',     en: 'Credits' },

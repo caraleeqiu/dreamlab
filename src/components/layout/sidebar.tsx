@@ -8,7 +8,7 @@ import type { Language } from '@/types'
 import { t, UI } from '@/lib/i18n'
 
 const NAV_KEYS = [
-  { href: '/',            labelKey: UI.nav.home,        icon: Home },
+  { href: '/home',        labelKey: UI.nav.home,        icon: Home },
   { href: '/studio',      labelKey: UI.nav.studio,      icon: Clapperboard },
   { href: '/influencers', labelKey: UI.nav.influencers, icon: Users },
   { href: '/credits',     labelKey: UI.nav.credits,     icon: Coins },
@@ -48,7 +48,7 @@ export default function Sidebar({ language }: { language: Language }) {
         {/* Nav */}
         <nav className="flex-1 py-4 px-3 space-y-0.5">
           {NAV_KEYS.map(({ href, labelKey, icon: Icon }) => {
-            const active = href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
+            const active = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
                 key={href}

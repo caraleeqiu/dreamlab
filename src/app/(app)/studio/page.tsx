@@ -3,13 +3,33 @@ import { createClient } from '@/lib/supabase/server'
 import { t, UI } from '@/lib/i18n'
 import type { Language } from '@/types'
 
-const CONTENT_LINES = [
+const REMIX_LINES = [
+  { href: '/studio/remix', key: 'remix' as const, emoji: '✂️', creditClass: 'text-violet-400' },
+]
+
+const ORIGINAL_LINES = [
   { href: '/studio/podcast', key: 'podcast' as const, emoji: '🎙️', creditClass: 'text-violet-400' },
-  { href: '/studio/remix',   key: 'remix'   as const, emoji: '✂️',  creditClass: 'text-violet-400' },
+  { href: '/studio/edu',     key: 'edu'     as const, emoji: '📚', creditClass: 'text-violet-400' },
   { href: '/studio/anime',   key: 'anime'   as const, emoji: '🎨', creditClass: 'text-amber-400'  },
   { href: '/studio/story',   key: 'story'   as const, emoji: '🎬', creditClass: 'text-violet-400' },
-  { href: '/studio/edu',     key: 'edu'     as const, emoji: '📚', creditClass: 'text-violet-400' },
 ]
+
+function LineCard({ line, lang }: { line: typeof ORIGINAL_LINES[0]; lang: Language }) {
+  const strings = UI.studio.lines[line.key]
+  return (
+    <Link
+      href={line.href}
+      className="group p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/80 transition-all"
+    >
+      <div className="text-3xl mb-3">{line.emoji}</div>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <h2 className="font-semibold text-white">{t(lang, strings.title)}</h2>
+        <span className={`text-xs font-medium shrink-0 ${line.creditClass}`}>{t(lang, strings.credit)}</span>
+      </div>
+      <p className="text-sm text-zinc-500 leading-relaxed">{t(lang, strings.desc)}</p>
+    </Link>
+  )
+}
 
 export default async function StudioPage() {
   const supabase = await createClient()
@@ -50,29 +70,23 @@ export default async function StudioPage() {
         </Link>
       </section>
 
-      {/* 内容创作 */}
-      <section>
+      {/* 爆款二创 */}
+      <section className="mb-8">
         <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">
-          {lang === 'zh' ? '内容创作' : 'Create Content'}
+          {lang === 'zh' ? '爆款二创' : 'Viral Remix'}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {CONTENT_LINES.map(line => {
-            const strings = UI.studio.lines[line.key]
-            return (
-              <Link
-                key={line.key}
-                href={line.href}
-                className="group p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/80 transition-all"
-              >
-                <div className="text-3xl mb-3">{line.emoji}</div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h2 className="font-semibold text-white">{t(lang, strings.title)}</h2>
-                  <span className={`text-xs font-medium shrink-0 ${line.creditClass}`}>{t(lang, strings.credit)}</span>
-                </div>
-                <p className="text-sm text-zinc-500 leading-relaxed">{t(lang, strings.desc)}</p>
-              </Link>
-            )
-          })}
+          {REMIX_LINES.map(line => <LineCard key={line.key} line={line} lang={lang} />)}
+        </div>
+      </section>
+
+      {/* 内容原创 */}
+      <section>
+        <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">
+          {lang === 'zh' ? '内容原创' : 'Original Content'}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {ORIGINAL_LINES.map(line => <LineCard key={line.key} line={line} lang={lang} />)}
         </div>
       </section>
 
