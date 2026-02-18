@@ -6,13 +6,14 @@ import { ArrowLeft, ArrowRight, Sparkles, Loader2, CheckCircle2 } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import Link from 'next/link'
 import type { Influencer, Language, ScriptClip } from '@/types'
-import { PLATFORMS } from '@/lib/language'
 import { UI, t } from '@/lib/i18n'
 
-type Step = 'category' | 'brand' | 'influencer' | 'format' | 'script' | 'generate'
+type Step = 'product' | 'category' | 'influencer' | 'format' | 'script' | 'generate'
 type ProductCategory = 'eat' | 'wear' | 'play' | 'use'
 type VideoFormat = 'voiceover' | 'drama' | 'other'
+type TotalDuration = '15s' | '30s' | '60s' | '3min'
 
 interface Props {
   lang: Language
@@ -22,33 +23,25 @@ interface Props {
 
 export default function AnimeWizard({ lang, credits, influencers }: Props) {
   const router = useRouter()
-  const [step, setStep] = useState<Step>('category')
+  const [step, setStep] = useState<Step>('product')
+  const [productInput, setProductInput] = useState('')
+  const [extracting, setExtracting] = useState(false)
   const [productCategory, setProductCategory] = useState<ProductCategory | null>(null)
   const [brandName, setBrandName] = useState('')
   const [productName, setProductName] = useState('')
   const [productDesc, setProductDesc] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
   const [selectedInfluencer, setSelectedInfluencer] = useState<Influencer | null>(null)
-  const [platform, setPlatform] = useState('')
+  const [platform, setPlatform] = useState('douyin')
   const [aspectRatio, setAspectRatio] = useState('9:16')
   const [videoFormat, setVideoFormat] = useState<VideoFormat | null>(null)
-  const [duration, setDuration] = useState<5 | 10 | 15>(10)
+  const [totalDuration, setTotalDuration] = useState<TotalDuration>('30s')
   const [script, setScript] = useState<ScriptClip[] | null>(null)
   const [loadingScript, setLoadingScript] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const platforms = PLATFORMS[lang]
   const CREDIT_COST = 50
-
-  const ANIME_STYLES = [
-    { id: 'cyberpunk', label: lang === 'zh' ? '赛博朋克' : 'Cyberpunk',    desc: lang === 'zh' ? '霓虹都市·科技感' : 'Neon city · tech vibes', emoji: '🌆' },
-    { id: 'ancient',   label: lang === 'zh' ? '古风'    : 'Ancient',       desc: lang === 'zh' ? '水墨·东方美学'   : 'Ink brush · oriental',   emoji: '🏮' },
-    { id: 'modern',    label: lang === 'zh' ? '现代都市' : 'Modern',        desc: lang === 'zh' ? '时尚·生活感'     : 'Fashion · lifestyle',    emoji: '🏙️' },
-    { id: 'cute',      label: lang === 'zh' ? '二次元'  : 'Kawaii',        desc: lang === 'zh' ? '萌系·Q版'        : 'Cute · chibi style',     emoji: '🌸' },
-    { id: 'fantasy',   label: lang === 'zh' ? '奇幻'    : 'Fantasy',       desc: lang === 'zh' ? '魔法世界·史诗感' : 'Magic world · epic',     emoji: '✨' },
-    { id: 'minimal',   label: lang === 'zh' ? '极简'    : 'Minimal',       desc: lang === 'zh' ? '纯净·高端感'     : 'Clean · premium',        emoji: '⬜' },
-  ]
 
   const PRODUCT_CATEGORIES: Array<{ id: ProductCategory; emoji: string; label: string; labelEn: string; desc: string; descEn: string; recommended: string[] }> = [
     {
@@ -88,6 +81,40 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
     ...influencers.filter(i => !recommendedSlugs.includes(i.slug ?? '') && i.type !== 'virtual' && i.type !== 'brand'),
   ]
 
+  // Duration → clip count (Kling max 15s/clip)
+  const DURATION_OPTIONS: Array<{ value: TotalDuration; label: string; labelEn: string; desc: string; descEn: string; clipCount: number }> = [
+    { value: '15s',  label: '15秒·极短', labelEn: '15s · Flash',    desc: '1段·单镜头种草', descEn: '1 clip · quick hook',        clipCount: 1 },
+    { value: '30s',  label: '30秒·标准', labelEn: '30s · Standard', desc: '2段·口播/种草',  descEn: '2 clips · voiceover/pitch',  clipCount: 2 },
+    { value: '60s',  label: '60秒·完整', labelEn: '60s · Full',     desc: '4段·剧情完整版', descEn: '4 clips · full drama arc',   clipCount: 4 },
+    { value: '3min', label: '3分钟·系列', labelEn: '3min · Series',  desc: '12段·mini连载',  descEn: '12 clips · mini series',    clipCount: 12 },
+  ]
+
+  async function extractProduct() {
+    if (!productInput.trim()) { setStep('category'); return }
+    setExtracting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/studio/anime/extract-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: productInput, lang }),
+      })
+      const data = await res.json()
+      if (res.ok && data) {
+        if (data.brandName) setBrandName(data.brandName)
+        if (data.productName) setProductName(data.productName)
+        if (data.productDesc) setProductDesc(data.productDesc)
+        if (data.targetAudience) setTargetAudience(data.targetAudience)
+        if (data.suggestedCategory) setProductCategory(data.suggestedCategory)
+      }
+    } catch {
+      // silently continue — user can fill manually
+    } finally {
+      setExtracting(false)
+      setStep('category')
+    }
+  }
+
   async function loadScript() {
     if (!selectedInfluencer || !brandName || !productName || !videoFormat) return
     setLoadingScript(true)
@@ -96,7 +123,7 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
       const res = await fetch('/api/studio/anime/script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandName, productName, productDesc, targetAudience, productCategory, videoFormat, animeStyle: autoAnimeStyle, influencer: selectedInfluencer, lang }),
+        body: JSON.stringify({ brandName, productName, productDesc, targetAudience, productCategory, videoFormat, animeStyle: autoAnimeStyle, influencer: selectedInfluencer, totalDuration, clipCount: DURATION_OPTIONS.find(d => d.value === totalDuration)?.clipCount ?? 2, lang }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
@@ -117,7 +144,7 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
       const res = await fetch('/api/studio/anime', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandName, productName, productDesc, targetAudience, productCategory, videoFormat, animeStyle: autoAnimeStyle, influencerId: selectedInfluencer.id, platform, aspectRatio, duration, script, lang }),
+        body: JSON.stringify({ brandName, productName, productDesc, targetAudience, productCategory, videoFormat, animeStyle: autoAnimeStyle, influencerId: selectedInfluencer.id, platform, aspectRatio, totalDuration, clipCount: DURATION_OPTIONS.find(d => d.value === totalDuration)?.clipCount ?? 2, script, lang }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
@@ -151,16 +178,10 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
     { ratio: '1:1',  label: '1:1',  platforms: lang === 'zh' ? '方形 / 广告位' : 'Square / Ad placement' },
   ]
 
-  const DURATIONS: Array<{ value: 5 | 10 | 15; label: string }> = [
-    { value: 5,  label: lang === 'zh' ? '5s · 极短' : '5s · Ultra short' },
-    { value: 10, label: lang === 'zh' ? '10s · 推荐' : '10s · Recommended' },
-    { value: 15, label: lang === 'zh' ? '15s · 完整' : '15s · Full' },
-  ]
-
-  const steps: Step[] = ['category', 'brand', 'influencer', 'format', 'script', 'generate']
+  const steps: Step[] = ['product', 'category', 'influencer', 'format', 'script', 'generate']
   const stepLabels = lang === 'zh'
-    ? ['分类', '品牌', '选角', '格式', '脚本', '生成']
-    : ['Category', 'Brand', 'Character', 'Format', 'Script', 'Generate']
+    ? ['产品', '分类', '选角', '格式', '脚本', '生成']
+    : ['Product', 'Category', 'Character', 'Format', 'Script', 'Generate']
   const stepIndex = steps.indexOf(step)
 
   return (
@@ -190,6 +211,45 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
         ))}
       </div>
 
+      {step === 'product' && (
+        <div className="space-y-5">
+          <div>
+            <p className="text-sm text-zinc-300 font-medium mb-1">
+              {lang === 'zh' ? '告诉我你的产品' : 'Tell me about your product'}
+            </p>
+            <p className="text-xs text-zinc-500 mb-4">
+              {lang === 'zh'
+                ? '粘贴产品链接、产品说明或关键卖点，AI 自动识别分类并填写信息'
+                : 'Paste a product URL, description, or key selling points — AI will auto-classify and fill in the details'}
+            </p>
+            <textarea
+              rows={4}
+              value={productInput}
+              onChange={e => setProductInput(e.target.value)}
+              placeholder={lang === 'zh'
+                ? '例如：https://item.taobao.com/...\n或：完美日记「小细跟」高光棒，持妆12小时，哑光质感，适合18-30岁女生...'
+                : 'e.g. https://product-url.com/...\nor: Fenty Beauty Gloss Bomb, 8-hour wear, mirror finish, 18-30 female target...'}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-sm text-white placeholder:text-zinc-600 resize-none focus:outline-none focus:border-violet-500"
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setStep('category')}
+              className="border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800">
+              {lang === 'zh' ? '跳过，手动填写' : 'Skip, fill manually'}
+            </Button>
+            <Button
+              onClick={extractProduct}
+              disabled={!productInput.trim() || extracting}
+              className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
+            >
+              {extracting
+                ? <><Loader2 size={14} className="animate-spin mr-2" />{lang === 'zh' ? 'AI 识别中...' : 'Analyzing...'}</>
+                : <><Sparkles size={14} className="mr-2" />{lang === 'zh' ? 'AI 识别产品信息' : 'AI Extract Info'}</>}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {step === 'category' && (
         <div className="space-y-4">
           <p className="text-sm text-zinc-400">
@@ -214,53 +274,54 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
               </button>
             ))}
           </div>
+
+          {/* 产品信息 — AI 提取后预填，用户可编辑；未填则必须手动输入 */}
+          <div className="space-y-3 pt-3 border-t border-zinc-800">
+            <p className="text-xs text-zinc-500 font-medium">
+              {lang === 'zh' ? '产品信息' : 'Product Info'}
+              <span className="text-red-400 ml-1">*</span>
+            </p>
+            <div className="space-y-2">
+              <Input
+                placeholder={lang === 'zh' ? '品牌名（必填）' : 'Brand name (required)'}
+                value={brandName}
+                onChange={e => setBrandName(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
+              />
+              <Input
+                placeholder={lang === 'zh' ? '产品名（必填）' : 'Product name (required)'}
+                value={productName}
+                onChange={e => setProductName(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
+              />
+              <Input
+                placeholder={lang === 'zh' ? '核心卖点 / 描述（选填）' : 'Key selling points / description (optional)'}
+                value={productDesc}
+                onChange={e => setProductDesc(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
+              />
+              <Input
+                placeholder={lang === 'zh' ? '目标受众（选填）' : 'Target audience (optional)'}
+                value={targetAudience}
+                onChange={e => setTargetAudience(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
+              />
+            </div>
+            {(!brandName.trim() || !productName.trim()) && (
+              <p className="text-xs text-amber-500">
+                {lang === 'zh'
+                  ? '请填写品牌名和产品名，才能生成脚本'
+                  : 'Brand name and product name are required to generate a script'}
+              </p>
+            )}
+          </div>
+
           <Button
-            onClick={() => setStep('brand')}
-            disabled={!productCategory}
+            onClick={() => setStep('influencer')}
+            disabled={!brandName.trim() || !productName.trim()}
             className="w-full bg-violet-600 hover:bg-violet-700 text-white"
           >
-            {lang === 'zh' ? '下一步' : 'Next'} <ArrowRight size={14} className="ml-1" />
-          </Button>
-        </div>
-      )}
-
-      {step === 'brand' && (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-zinc-400">{t(lang, UI.wizard.animeBrand)}</Label>
-            <Input
-              placeholder={lang === 'zh' ? '例如：泡泡玛特、完美日记' : 'e.g. Pop Mart, Fenty Beauty'}
-              value={brandName} onChange={e => setBrandName(e.target.value)}
-              className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-zinc-400">{t(lang, UI.wizard.animeProduct)}</Label>
-            <Input
-              placeholder={lang === 'zh' ? '例如：限定联名款唇膏' : 'e.g. Limited edition collab lipstick'}
-              value={productName} onChange={e => setProductName(e.target.value)}
-              className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-zinc-400">{t(lang, UI.wizard.animePoints)}</Label>
-            <Input
-              placeholder={lang === 'zh' ? '例如：持色24小时、联名设计' : 'e.g. 24h wear, collab design'}
-              value={productDesc} onChange={e => setProductDesc(e.target.value)}
-              className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-zinc-400">{t(lang, UI.wizard.animeAudience)}</Label>
-            <Input
-              placeholder={lang === 'zh' ? '例如：18-25岁女性、二次元爱好者' : 'e.g. 18-25 female, anime fans'}
-              value={targetAudience} onChange={e => setTargetAudience(e.target.value)}
-              className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
-            />
-          </div>
-          <Button onClick={() => setStep('influencer')} disabled={!brandName.trim() || !productName.trim()}
-            className="w-full bg-violet-600 hover:bg-violet-700 text-white">
-            {t(lang, UI.wizard.nextBtn)} <ArrowRight size={14} className="ml-1" />
+            {lang === 'zh' ? '下一步：选角色' : 'Next: Pick Character'} <ArrowRight size={14} className="ml-1" />
           </Button>
         </div>
       )}
@@ -268,31 +329,58 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
       {step === 'influencer' && (
         <div className="space-y-4">
           <p className="text-sm text-zinc-400">{t(lang, UI.wizard.animePickInf)}</p>
-          <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
-            {sortedInfluencers.map(inf => (
-              <button key={inf.id} onClick={() => setSelectedInfluencer(inf)}
-                className={`p-3 rounded-xl border text-left transition-all ${selectedInfluencer?.id === inf.id ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
-                {inf.frontal_image_url
-                  ? <img src={inf.frontal_image_url} alt={inf.name} className="w-full aspect-square object-cover rounded-lg mb-2" />
-                  : <div className="w-full aspect-square rounded-lg bg-zinc-700 mb-2 flex items-center justify-center text-2xl">
-                      {inf.type === 'animal' ? '🐾' : inf.type === 'virtual' ? '🤖' : inf.type === 'brand' ? '✨' : '👤'}
-                    </div>}
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className={`text-sm font-medium ${selectedInfluencer?.id === inf.id ? 'text-violet-300' : 'text-white'}`}>{inf.name}</span>
-                  {recommendedSlugs.includes(inf.slug ?? '') && (
-                    <span className="text-xs px-1 rounded bg-amber-900/50 text-amber-400">{lang === 'zh' ? '推荐' : 'Rec'}</span>
-                  )}
-                </div>
-                <div className="text-xs text-zinc-500 line-clamp-1">{inf.tagline}</div>
-              </button>
-            ))}
-          </div>
+
+          {sortedInfluencers.length === 0 ? (
+            <div className="p-8 rounded-xl border border-zinc-800 bg-zinc-900 text-center space-y-3">
+              <div className="text-4xl">🎭</div>
+              <p className="text-sm text-zinc-400">
+                {lang === 'zh' ? '还没有可用角色' : 'No characters available yet'}
+              </p>
+              <Link href="/influencers" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors">
+                {lang === 'zh' ? '去创建我的第一个角色 →' : 'Create my first character →'}
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
+              {sortedInfluencers.map(inf => (
+                <button key={inf.id} onClick={() => setSelectedInfluencer(inf)}
+                  className={`p-3 rounded-xl border text-left transition-all ${selectedInfluencer?.id === inf.id ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
+                  {inf.frontal_image_url
+                    ? <img src={inf.frontal_image_url} alt={inf.name} className="w-full aspect-square object-cover rounded-lg mb-2" />
+                    : <div className="w-full aspect-square rounded-lg bg-zinc-700 mb-2 flex items-center justify-center text-2xl">
+                        {inf.type === 'animal' ? '🐾' : inf.type === 'virtual' ? '🤖' : inf.type === 'brand' ? '✨' : '👤'}
+                      </div>}
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className={`text-sm font-medium ${selectedInfluencer?.id === inf.id ? 'text-violet-300' : 'text-white'}`}>{inf.name}</span>
+                    {recommendedSlugs.includes(inf.slug ?? '') && (
+                      <span className="text-xs px-1 rounded bg-amber-900/50 text-amber-400">{lang === 'zh' ? '推荐' : 'Rec'}</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-zinc-500 line-clamp-1">{inf.tagline}</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 引导去网红库创建角色 */}
+          <p className="text-xs text-center text-zinc-600">
+            {lang === 'zh' ? '没有合适的角色？' : "Can't find the right character?"}{' '}
+            <Link href="/influencers" className="text-violet-400 hover:text-violet-300 underline transition-colors">
+              {lang === 'zh' ? '去网红库创建 →' : 'Create one in Influencer Library →'}
+            </Link>
+          </p>
+
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep('brand')} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">{t(lang, UI.wizard.prevBtn)}</Button>
+            <Button variant="outline" onClick={() => setStep('category')} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">{t(lang, UI.wizard.prevBtn)}</Button>
             <Button onClick={() => setStep('format')} disabled={!selectedInfluencer} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white">
               {t(lang, UI.wizard.nextBtn)} <ArrowRight size={14} className="ml-1" />
             </Button>
           </div>
+          {!selectedInfluencer && sortedInfluencers.length > 0 && (
+            <p className="text-xs text-amber-500 text-center">
+              {lang === 'zh' ? '请选择一个角色再继续' : 'Please select a character to continue'}
+            </p>
+          )}
         </div>
       )}
 
@@ -327,14 +415,17 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
             </div>
           </div>
 
-          {/* 时长 */}
+          {/* 视频总时长 */}
           <div className="space-y-3">
-            <Label className="text-zinc-400">{lang === 'zh' ? '每段时长' : 'Clip Duration'}</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {DURATIONS.map(d => (
-                <button key={d.value} onClick={() => setDuration(d.value)}
-                  className={`p-3 rounded-lg border text-center transition-all ${duration === d.value ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
-                  <div className={`text-sm font-medium ${duration === d.value ? 'text-violet-300' : 'text-white'}`}>{d.label}</div>
+            <Label className="text-zinc-400">{lang === 'zh' ? '视频总时长' : 'Total Duration'}</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {DURATION_OPTIONS.map(d => (
+                <button key={d.value} onClick={() => setTotalDuration(d.value)}
+                  className={`p-3 rounded-lg border text-left transition-all ${totalDuration === d.value ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
+                  <div className={`text-sm font-medium ${totalDuration === d.value ? 'text-violet-300' : 'text-white'}`}>
+                    {lang === 'zh' ? d.label : d.labelEn}
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-0.5">{lang === 'zh' ? d.desc : d.descEn}</div>
                 </button>
               ))}
             </div>
@@ -387,7 +478,7 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
               <span className="text-zinc-500">{t(lang, UI.wizard.animeProduct)}</span><span className="text-zinc-300">{productName}</span>
               <span className="text-zinc-500">{lang === 'zh' ? '代言角色' : 'Character'}</span><span className="text-zinc-300">{selectedInfluencer?.name}</span>
               <span className="text-zinc-500">{lang === 'zh' ? '视频格式' : 'Format'}</span><span className="text-zinc-300">{VIDEO_FORMATS.find(f => f.id === videoFormat)?.[lang === 'zh' ? 'label' : 'labelEn']}</span>
-              <span className="text-zinc-500">{lang === 'zh' ? '比例·时长' : 'Ratio · Duration'}</span><span className="text-zinc-300">{aspectRatio} · {duration}s</span>
+              <span className="text-zinc-500">{lang === 'zh' ? '比例·时长' : 'Ratio · Duration'}</span><span className="text-zinc-300">{aspectRatio} · {totalDuration}</span>
             </div>
           </div>
           <div className="p-4 rounded-xl bg-amber-900/20 border border-amber-800">

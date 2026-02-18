@@ -14,7 +14,9 @@ const ORIGINAL_LINES = [
   { href: '/studio/story',   key: 'story'   as const, emoji: '🎬', creditClass: 'text-violet-400' },
 ]
 
-function LineCard({ line, lang }: { line: typeof ORIGINAL_LINES[0]; lang: Language }) {
+type LineKey = keyof typeof UI.studio.lines
+type LineItem = { href: string; key: LineKey; emoji: string; creditClass: string }
+function LineCard({ line, lang }: { line: LineItem; lang: Language }) {
   const strings = UI.studio.lines[line.key]
   return (
     <Link
