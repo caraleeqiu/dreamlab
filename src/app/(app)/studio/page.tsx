@@ -54,20 +54,19 @@ export default async function StudioPage() {
         <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">
           {lang === 'zh' ? '看灵感' : 'Get Inspired · Free'}
         </h2>
-        <Link
-          href="/studio/trending"
-          className="group flex items-center gap-5 p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-green-800/60 hover:bg-zinc-800/80 transition-all"
-        >
-          <span className="text-4xl">🔥</span>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Link
+            href="/studio/trending"
+            className="group p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-green-800/60 hover:bg-zinc-800/80 transition-all"
+          >
+            <div className="text-3xl mb-3">🔥</div>
+            <div className="flex items-start justify-between gap-2 mb-2">
               <h2 className="font-semibold text-white">{t(lang, UI.studio.lines.trending.title)}</h2>
-              <span className="text-xs font-medium text-green-400">{t(lang, UI.studio.lines.trending.credit)}</span>
+              <span className="text-xs font-medium text-green-400 shrink-0">{t(lang, UI.studio.lines.trending.credit)}</span>
             </div>
-            <p className="text-sm text-zinc-500">{t(lang, UI.studio.lines.trending.desc)}</p>
-          </div>
-          <span className="text-zinc-600 group-hover:text-zinc-400 transition-colors text-lg">→</span>
-        </Link>
+            <p className="text-sm text-zinc-500 leading-relaxed">{t(lang, UI.studio.lines.trending.desc)}</p>
+          </Link>
+        </div>
       </section>
 
       {/* 爆款二创 */}

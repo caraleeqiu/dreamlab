@@ -3,9 +3,11 @@ import type { Language } from '@/types'
 export const UI = {
   // ─── Nav ───────────────────────────────────────────────────────────────────
   nav: {
-    home:        { zh: '我的作品', en: 'My Works' },
-    studio:      { zh: '内容工厂', en: 'Studio' },
-    influencers: { zh: '网红库',   en: 'Influencers' },
+    home:        { zh: '工作台',   en: 'Dashboard' },
+    influencers: { zh: '网红管理', en: 'Influencers' },
+    studio:      { zh: '内容创作', en: 'Studio' },
+    jobs:        { zh: '任务管理', en: 'Tasks' },
+    works:       { zh: '历史作品', en: 'Works' },
     credits:     { zh: '积分',     en: 'Credits' },
     switchLang:  { zh: '切换',     en: 'Switch' },
     logout:      { zh: '退出登录', en: 'Log out' },
