@@ -47,7 +47,6 @@ export function buildClipPrompt(
     duration: String(clip.duration),
     aspect_ratio: '9:16',
     mode: 'pro' as const,
-    cfg_scale: 0.5,
     element_list: [{ frontal_image_url: frontalImageUrl }],
     sound: 'on',
   }
@@ -78,8 +77,8 @@ export async function submitMultiShotVideo(params: {
   shotType?: 'intelligence' | 'customize'
   aspectRatio?: string
   renderMode?: 'pro' | 'std'
-  elementList?: Array<{ element_id?: number; frontal_image_url?: string }>
-  voiceList?: Array<{ voice_id: number }>
+  elementList?: Array<{ element_id?: string; frontal_image_url?: string }>
+  voiceList?: Array<{ voice_id: string }>
   callbackUrl?: string
 }) {
   const shotType = params.shotType ?? (params.shots?.length ? 'customize' : 'intelligence')
@@ -88,7 +87,7 @@ export async function submitMultiShotVideo(params: {
     model_name: 'kling-v3',
     mode: params.renderMode ?? 'pro',
     image: params.imageUrl,
-    multi_shot: 'true',
+    multi_shot: true,
     shot_type: shotType,
     duration: String(Math.min(params.totalDuration, 15)),
     aspect_ratio: params.aspectRatio ?? '9:16',
