@@ -123,7 +123,7 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
       const res = await fetch('/api/studio/anime/script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandName, productName, productDesc, targetAudience, productCategory, videoFormat, animeStyle: autoAnimeStyle, influencer: selectedInfluencer, totalDuration, clipCount: DURATION_OPTIONS.find(d => d.value === totalDuration)?.clipCount ?? 2, lang }),
+        body: JSON.stringify({ brandName, productName, productDesc, targetAudience, productCategory, videoFormat, animeStyle: autoAnimeStyle, influencerId: selectedInfluencer.id, totalDuration, clipCount: DURATION_OPTIONS.find(d => d.value === totalDuration)?.clipCount ?? 2, lang }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
