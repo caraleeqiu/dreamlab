@@ -5,17 +5,19 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Home, Users, Clapperboard, Coins, LogOut, Zap, Globe } from 'lucide-react'
 import type { Language } from '@/types'
+import { t, UI } from '@/lib/i18n'
 
-const NAV = [
-  { href: '/',            label: '主页',     icon: Home },
-  { href: '/studio',      label: '内容工厂', icon: Clapperboard },
-  { href: '/influencers', label: '网红库',   icon: Users },
-  { href: '/credits',     label: '积分',     icon: Coins },
+const NAV_KEYS = [
+  { href: '/',            labelKey: UI.nav.home,        icon: Home },
+  { href: '/studio',      labelKey: UI.nav.studio,      icon: Clapperboard },
+  { href: '/influencers', labelKey: UI.nav.influencers, icon: Users },
+  { href: '/credits',     labelKey: UI.nav.credits,     icon: Coins },
 ]
 
 export default function Sidebar({ language }: { language: Language }) {
   const pathname = usePathname()
   const router = useRouter()
+  const lang = language
 
   async function handleLogout() {
     const supabase = createClient()
@@ -26,7 +28,7 @@ export default function Sidebar({ language }: { language: Language }) {
 
   async function toggleLanguage() {
     const supabase = createClient()
-    const next: Language = language === 'zh' ? 'en' : 'zh'
+    const next: Language = lang === 'zh' ? 'en' : 'zh'
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     await supabase.from('profiles').update({ language: next }).eq('id', user.id)
@@ -45,7 +47,7 @@ export default function Sidebar({ language }: { language: Language }) {
 
         {/* Nav */}
         <nav className="flex-1 py-4 px-3 space-y-0.5">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {NAV_KEYS.map(({ href, labelKey, icon: Icon }) => {
             const active = href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
@@ -58,7 +60,7 @@ export default function Sidebar({ language }: { language: Language }) {
                   }`}
               >
                 <Icon size={16} />
-                {label}
+                {t(lang, labelKey)}
               </Link>
             )
           })}
@@ -71,22 +73,22 @@ export default function Sidebar({ language }: { language: Language }) {
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors w-full"
           >
             <Globe size={16} />
-            <span>{language === 'zh' ? '中文' : 'English'}</span>
-            <span className="ml-auto text-xs text-zinc-600">切换</span>
+            <span>{lang === 'zh' ? '中文' : 'English'}</span>
+            <span className="ml-auto text-xs text-zinc-600">{t(lang, UI.nav.switchLang)}</span>
           </button>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors w-full"
           >
             <LogOut size={16} />
-            退出登录
+            {t(lang, UI.nav.logout)}
           </button>
         </div>
       </aside>
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around bg-zinc-900 border-t border-zinc-800 pb-safe">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {NAV_KEYS.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
@@ -95,7 +97,7 @@ export default function Sidebar({ language }: { language: Language }) {
               className={`flex flex-col items-center gap-0.5 px-3 py-2 text-xs font-medium transition-colors ${active ? 'text-violet-300' : 'text-zinc-500'}`}
             >
               <Icon size={20} />
-              <span>{label}</span>
+              <span>{t(lang, labelKey)}</span>
             </Link>
           )
         })}

@@ -7,13 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { PLATFORMS, TOPIC_CATEGORIES } from '@/lib/language'
 import type { Language, Influencer, ScriptClip } from '@/types'
-
-const STEPS = ['选话题', '确认要点', '节目设置', '预览脚本', '分镜预览', '生成视频']
+import { t, UI } from '@/lib/i18n'
 
 interface Topic { id: string; title: string; angle: string; source: string; date: string }
-interface Props { lang: Language; credits: number; influencers: Influencer[] }
+interface Props { lang: Language; credits: number; influencers: Influencer[]; initialMode?: 'trending' | 'import' | 'custom' }
 
-export default function PodcastWizard({ lang, credits, influencers }: Props) {
+export default function PodcastWizard({ lang, credits, influencers, initialMode }: Props) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [step, setStep] = useState(0)
@@ -26,7 +25,7 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
   const [activeCategory, setActiveCategory] = useState(TOPIC_CATEGORIES[lang][0])
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([])
   const [customText, setCustomText] = useState('')
-  const [inputMode, setInputMode] = useState<'trending' | 'custom'>('trending')
+  const [inputMode, setInputMode] = useState<'trending' | 'custom'>(initialMode === 'custom' ? 'custom' : 'trending')
 
   // Step 1
   const [perspective, setPerspective] = useState('')
@@ -189,6 +188,8 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
     })
   }
 
+  const STEPS = UI.podcast.steps[lang]
+
   return (
     <div className="max-w-2xl mx-auto">
       {/* 步骤指示 */}
@@ -215,7 +216,7 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
               <button key={m} onClick={() => setInputMode(m)}
                 className={`px-3 py-1.5 rounded-full text-sm transition-colors
                   ${inputMode === m ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}>
-                {m === 'trending' ? '🔥 热点话题' : '✍️ 自己写'}
+                {m === 'trending' ? t(lang, UI.podcast.trendingMode) : t(lang, UI.podcast.customMode)}
               </button>
             ))}
           </div>
@@ -258,12 +259,12 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
                 </div>
               )}
               {selectedTopics.length > 0 && (
-                <p className="text-xs text-zinc-500">已选 {selectedTopics.length}/2 个话题{selectedTopics.length === 2 ? '（AI将融合为一期）' : ''}</p>
+                <p className="text-xs text-zinc-500">{t(lang, UI.podcast.selected)} {selectedTopics.length}{t(lang, UI.podcast.topicsOf)}{selectedTopics.length === 2 ? t(lang, UI.podcast.topicsMerge) : ''}</p>
               )}
             </>
           ) : (
             <Textarea value={customText} onChange={e => setCustomText(e.target.value)}
-              placeholder="直接粘贴文章链接、描述话题，或贴入脚本文本..."
+              placeholder={t(lang, UI.podcast.customPlaceholder)}
               className="bg-zinc-800 border-zinc-700 text-white resize-none min-h-32" rows={6} />
           )}
         </div>
@@ -275,13 +276,13 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
           {loading ? (
             <div className="flex flex-col items-center py-12 gap-3 text-zinc-500">
               <Loader2 size={24} className="animate-spin text-violet-400" />
-              <span className="text-sm">AI 提炼要点中...</span>
+              <span className="text-sm">{t(lang, UI.podcast.extracting)}</span>
             </div>
           ) : (
             <>
               {perspective && (
                 <div className="p-3 rounded-lg bg-violet-600/10 border border-violet-800 text-sm text-violet-300">
-                  <span className="font-medium">本期视角：</span>{perspective}
+                  <span className="font-medium">{t(lang, UI.podcast.perspective)}</span>{perspective}
                 </div>
               )}
               <div className="space-y-2">
@@ -299,13 +300,13 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-zinc-600">已选 {selectedKps.length}/6 个要点</p>
+              <p className="text-xs text-zinc-600">{t(lang, UI.podcast.selected)} {selectedKps.length}{t(lang, UI.podcast.keypointsOf)}</p>
               <div className="flex gap-2">
                 <Textarea value={customKp} onChange={e => setCustomKp(e.target.value)}
-                  placeholder="补充一个要点（选填）" className="bg-zinc-800 border-zinc-700 text-white resize-none" rows={2} />
+                  placeholder={t(lang, UI.podcast.addKpPlaceholder)} className="bg-zinc-800 border-zinc-700 text-white resize-none" rows={2} />
                 {customKp && (
                   <Button onClick={() => { setKeypoints(prev => [...prev, customKp]); setSelectedKps(prev => [...prev, keypoints.length]); setCustomKp('') }}
-                    variant="outline" className="shrink-0 border-zinc-700 text-zinc-400">加入</Button>
+                    variant="outline" className="shrink-0 border-zinc-700 text-zinc-400">{t(lang, UI.podcast.addKpBtn)}</Button>
                 )}
               </div>
             </>
@@ -317,19 +318,19 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
       {step === 2 && (
         <div className="space-y-6">
           <div className="space-y-2">
-            <label className="text-sm text-zinc-400">节目类型</label>
+            <label className="text-sm text-zinc-400">{t(lang, UI.podcast.showType)}</label>
             <div className="flex gap-2">
               {(['solo', 'dialogue'] as const).map(f => (
                 <button key={f} onClick={() => { setFormat(f); setSelectedInfluencers([]) }}
                   className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors
                     ${format === f ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400'}`}>
-                  {f === 'solo' ? '🎤 单口' : '🎙️ 对谈'}
+                  {f === 'solo' ? t(lang, UI.podcast.solo) : t(lang, UI.podcast.dialogue)}
                 </button>
               ))}
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-zinc-400">发布平台</label>
+            <label className="text-sm text-zinc-400">{t(lang, UI.podcast.platform)}</label>
             <div className="flex flex-wrap gap-2">
               {platforms.map(p => (
                 <button key={p.value} onClick={() => setPlatform(p.value)}
@@ -341,26 +342,26 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
               ))}
             </div>
             {platforms.find(p => p.value === platform) && (
-              <p className="text-xs text-zinc-600">建议时长：{platforms.find(p => p.value === platform)?.durationHint}</p>
+              <p className="text-xs text-zinc-600">{lang === 'zh' ? '建议时长：' : 'Suggested: '}{platforms.find(p => p.value === platform)?.durationHint}</p>
             )}
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-zinc-400">视频时长</label>
+            <label className="text-sm text-zinc-400">{t(lang, UI.podcast.duration)}</label>
             <div className="flex flex-wrap gap-2">
               {[60, 180, 300, 600].map(d => (
                 <button key={d} onClick={() => setDuration(d)}
                   className={`px-3.5 py-2 rounded-lg border text-sm transition-colors
                     ${duration === d ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400'}`}>
-                  {d < 60 ? `${d}s` : `${d / 60}分钟`}
+                  {d < 60 ? `${d}${t(lang, UI.podcast.durationSec)}` : `${d / 60}${t(lang, UI.podcast.durationMin)}`}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-zinc-600">约 {Math.floor(duration / 15)} 个切片</p>
+            <p className="text-xs text-zinc-600">{lang === 'zh' ? `约 ${Math.floor(duration / 15)} 个切片` : `~${Math.floor(duration / 15)} clips`}</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm text-zinc-400">
-              选网红（{format === 'solo' ? '选1个' : '选2个'}）
-              {selectedInfluencers.length === 0 && <span className="text-zinc-600 ml-1">不选则使用默认</span>}
+              {t(lang, UI.podcast.pickInfluencer)}（{format === 'solo' ? (lang === 'zh' ? '选1个' : 'pick 1') : (lang === 'zh' ? '选2个' : 'pick 2')}）
+              {selectedInfluencers.length === 0 && <span className="text-zinc-600 ml-1">{lang === 'zh' ? '不选则使用默认' : 'default if none selected'}</span>}
             </label>
             <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
               {influencers.map(inf => {
@@ -386,11 +387,15 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
           {loading ? (
             <div className="flex flex-col items-center py-12 gap-3 text-zinc-500">
               <Loader2 size={24} className="animate-spin text-violet-400" />
-              <span className="text-sm">AI 生成脚本中...</span>
+              <span className="text-sm">{t(lang, UI.podcast.scriptLoading)}</span>
             </div>
           ) : (
             <>
-              <p className="text-sm text-zinc-500">{script.length} 个切片 · 约 {Math.floor(script.length * 15 / 60)} 分钟 · 可编辑台词</p>
+              <p className="text-sm text-zinc-500">
+                {lang === 'zh'
+                  ? `${script.length} 个切片 · 约 ${Math.floor(script.length * 15 / 60)} 分钟 · 可编辑台词`
+                  : `${script.length} clips · ~${Math.floor(script.length * 15 / 60)} min · editable`}
+              </p>
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {script.map((clip, i) => (
                   <div key={i} className="p-3 rounded-xl border border-zinc-800 bg-zinc-900">
@@ -420,23 +425,27 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
           {loading ? (
             <div className="flex flex-col items-center py-12 gap-3 text-zinc-500">
               <Loader2 size={24} className="animate-spin text-violet-400" />
-              <span className="text-sm">AI 生成分镜中...</span>
+              <span className="text-sm">{t(lang, UI.podcast.storyboardLoading)}</span>
             </div>
           ) : (
             <>
-              <p className="text-sm text-zinc-500">{storyboard.length} 个镜头 · 可返回上一步修改台词后重新生成</p>
+              <p className="text-sm text-zinc-500">
+                {lang === 'zh'
+                  ? `${storyboard.length} 个镜头 · 可返回上一步修改台词后重新生成`
+                  : `${storyboard.length} shots · go back to edit dialogue`}
+              </p>
               <div className="overflow-x-auto rounded-xl border border-zinc-800">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-zinc-800 bg-zinc-900">
                       <th className="px-3 py-2 text-left text-zinc-500 font-medium w-8">#</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">说话人</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">景别</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">运动</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">台词</th>
+                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '说话人' : 'Speaker'}</th>
+                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '景别' : 'Shot'}</th>
+                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '运动' : 'Camera'}</th>
+                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '台词' : 'Dialogue'}</th>
                       <th className="px-3 py-2 text-left text-zinc-500 font-medium">BGM</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">旁白</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium w-8">时长</th>
+                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '旁白' : 'VO'}</th>
+                      <th className="px-3 py-2 text-left text-zinc-500 font-medium w-8">{lang === 'zh' ? '时长' : 'Dur'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -472,14 +481,14 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
       {step === 5 && (
         <div className="space-y-6">
           <div className="p-4 rounded-xl bg-zinc-800 space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-zinc-400">类型</span><span className="text-white">{format === 'solo' ? '单口' : '对谈'}</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">平台</span><span className="text-white">{platforms.find(p => p.value === platform)?.label} ({aspectRatio})</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">时长</span><span className="text-white">约 {Math.floor(duration / 60)} 分钟</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">切片数</span><span className="text-white">{(storyboard.length || script.length)} 个</span></div>
-            <div className="flex justify-between font-medium"><span className="text-zinc-400">费用</span><span className="text-violet-400">20 积分</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{lang === 'zh' ? '类型' : 'Type'}</span><span className="text-white">{format === 'solo' ? t(lang, UI.podcast.solo) : t(lang, UI.podcast.dialogue)}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{lang === 'zh' ? '平台' : 'Platform'}</span><span className="text-white">{platforms.find(p => p.value === platform)?.label} ({aspectRatio})</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{lang === 'zh' ? '时长' : 'Duration'}</span><span className="text-white">~{Math.floor(duration / 60)} {t(lang, UI.podcast.durationMin)}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{lang === 'zh' ? '切片数' : 'Clips'}</span><span className="text-white">{storyboard.length || script.length}</span></div>
+            <div className="flex justify-between font-medium"><span className="text-zinc-400">{lang === 'zh' ? '费用' : 'Cost'}</span><span className="text-violet-400">20 {t(lang, UI.common.credits)}</span></div>
           </div>
           {credits < 20 && (
-            <p className="text-sm text-red-400">积分不足（当前 {credits} 积分），请先充值</p>
+            <p className="text-sm text-red-400">{t(lang, UI.podcast.insufficientCredits)} ({lang === 'zh' ? `当前 ${credits} 积分` : `current: ${credits}`})</p>
           )}
         </div>
       )}
@@ -488,44 +497,46 @@ export default function PodcastWizard({ lang, credits, influencers }: Props) {
       <div className="flex justify-between mt-8 pt-6 border-t border-zinc-800">
         <Button variant="ghost" onClick={() => step === 0 ? router.back() : setStep(s => s - 1)}
           className="text-zinc-400 hover:text-white">
-          <ChevronLeft size={16} className="mr-1" />{step === 0 ? '返回' : '上一步'}
+          <ChevronLeft size={16} className="mr-1" />{step === 0 ? t(lang, UI.common.back) : t(lang, UI.common.prev)}
         </Button>
 
         {step === 0 && (
           <Button onClick={() => { setStep(1); generateKeypoints() }}
             disabled={inputMode === 'trending' ? selectedTopics.length === 0 : !customText.trim()}
             className="bg-violet-600 hover:bg-violet-700 text-white">
-            AI 提炼要点
+            {lang === 'zh' ? 'AI 提炼要点' : 'Extract Key Points'}
           </Button>
         )}
         {step === 1 && !loading && (
           <Button onClick={() => setStep(2)} disabled={selectedKps.length === 0}
             className="bg-violet-600 hover:bg-violet-700 text-white">
-            下一步：节目设置
+            {lang === 'zh' ? '下一步：节目设置' : 'Next: Setup'}
           </Button>
         )}
         {step === 2 && (
           <Button onClick={() => { setStep(3); generateScript() }}
             className="bg-violet-600 hover:bg-violet-700 text-white">
-            AI 生成脚本
+            {t(lang, UI.podcast.generateScriptBtn)}
           </Button>
         )}
         {step === 3 && !loading && (
           <Button onClick={() => { setStep(4); generateStoryboard() }} disabled={script.length === 0}
             className="bg-violet-600 hover:bg-violet-700 text-white">
-            AI 生成分镜
+            {t(lang, UI.podcast.generateStoryboardBtn)}
           </Button>
         )}
         {step === 4 && !loading && (
           <Button onClick={() => setStep(5)} disabled={storyboard.length === 0}
             className="bg-violet-600 hover:bg-violet-700 text-white">
-            下一步：确认生成
+            {lang === 'zh' ? '下一步：确认生成' : 'Next: Confirm'}
           </Button>
         )}
         {step === 5 && (
           <Button onClick={submitJob} disabled={loading || credits < 20}
             className="bg-violet-600 hover:bg-violet-700 text-white">
-            {loading ? <><Loader2 size={14} className="animate-spin mr-1.5" />提交中...</> : '确认生成 (20积分)'}
+            {loading
+              ? <><Loader2 size={14} className="animate-spin mr-1.5" />{lang === 'zh' ? '提交中...' : 'Submitting...'}</>
+              : `${t(lang, UI.podcast.submitBtn)} (20 ${t(lang, UI.common.credits)})`}
           </Button>
         )}
       </div>

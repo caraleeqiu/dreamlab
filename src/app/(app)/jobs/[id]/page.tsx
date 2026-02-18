@@ -5,18 +5,27 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Job, Clip } from '@/types'
+import { useLanguage } from '@/context/language-context'
+import { t, UI } from '@/lib/i18n'
 
 const STATUS_STEPS = ['pending', 'scripting', 'generating', 'lipsync', 'stitching', 'done']
-const STATUS_LABEL: Record<string, string> = {
-  pending: '等待中', scripting: '生成脚本', generating: '生成视频',
-  lipsync: '口型对齐', stitching: '合并中', done: '完成', failed: '失败',
-}
 
 export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
+  const lang = useLanguage()
   const [job, setJob] = useState<(Job & { clips?: Clip[] }) | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const STATUS_LABEL: Record<string, string> = {
+    pending:    t(lang, UI.jobs.status.pending),
+    scripting:  t(lang, UI.jobs.status.scripting),
+    generating: t(lang, UI.jobs.status.generating),
+    lipsync:    t(lang, UI.jobs.status.lipsync),
+    stitching:  t(lang, UI.jobs.status.stitching),
+    done:       t(lang, UI.jobs.status.done),
+    failed:     t(lang, UI.jobs.status.failed),
+  }
 
   useEffect(() => {
     fetchJob()
@@ -44,25 +53,28 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       <Loader2 size={24} className="animate-spin text-zinc-500" />
     </div>
   )
-  if (!job) return <div className="text-zinc-500 text-center py-20">任务不存在</div>
+  if (!job) return <div className="text-zinc-500 text-center py-20">{t(lang, UI.jobs.jobNotFound)}</div>
 
   const stepIdx = STATUS_STEPS.indexOf(job.status)
   const isFailed = job.status === 'failed'
   const isDone = job.status === 'done'
+  const dateStr = lang === 'zh'
+    ? new Date(job.created_at).toLocaleString('zh-CN')
+    : new Date(job.created_at).toLocaleString('en-US')
 
   return (
     <div className="max-w-2xl mx-auto">
       {/* 返回 */}
       <button onClick={() => router.back()} className="flex items-center gap-2 text-zinc-500 hover:text-white text-sm mb-6 transition-colors">
-        <ArrowLeft size={15} /> 返回任务列表
+        <ArrowLeft size={15} /> {t(lang, UI.jobs.backToList)}
       </button>
 
       {/* 标题 */}
-      <h1 className="text-xl font-bold text-white mb-1">{job.title || '无标题'}</h1>
+      <h1 className="text-xl font-bold text-white mb-1">{job.title || t(lang, UI.jobs.untitled)}</h1>
       <div className="flex gap-3 text-xs text-zinc-500 mb-8">
         <span>#{job.id}</span>
-        <span>{job.credit_cost} 积分</span>
-        <span>{new Date(job.created_at).toLocaleString('zh-CN')}</span>
+        <span>{job.credit_cost} {t(lang, UI.jobs.credits)}</span>
+        <span>{dateStr}</span>
       </div>
 
       {/* 进度条 */}
@@ -97,7 +109,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {/* 切片进度 */}
       {job.clips && job.clips.length > 0 && !isDone && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-zinc-400 mb-3">切片进度（{job.clips.filter(c => c.status === 'done').length}/{job.clips.length}）</h2>
+          <h2 className="text-sm font-medium text-zinc-400 mb-3">
+            {lang === 'zh'
+              ? `切片进度（${job.clips.filter(c => c.status === 'done').length}/${job.clips.length}）`
+              : `Clips (${job.clips.filter(c => c.status === 'done').length}/${job.clips.length})`}
+          </h2>
           <div className="grid grid-cols-5 gap-2">
             {job.clips.map(clip => (
               <div key={clip.id} className={`aspect-video rounded-lg flex items-center justify-center text-xs font-medium
@@ -118,10 +134,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {/* 完成：视频预览 */}
       {isDone && (
         <div className="space-y-6">
-          {/* 合并成品（若有） */}
           {job.final_video_url && (
             <div className="space-y-3">
-              <h2 className="text-sm font-medium text-zinc-400">生成结果</h2>
+              <h2 className="text-sm font-medium text-zinc-400">
+                {lang === 'zh' ? '生成结果' : 'Result'}
+              </h2>
               <video
                 src={job.final_video_url}
                 controls
@@ -132,17 +149,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 <a href={job.final_video_url} download
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors">
                   <Download size={14} />
-                  下载合并视频
+                  {t(lang, UI.jobs.downloadAll)}
                 </a>
               </div>
             </div>
           )}
 
-          {/* 各切片独立下载 */}
           {job.clips && job.clips.filter(c => c.lipsync_url || c.video_url).length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-medium text-zinc-400">
-                {(job.clips.filter(c => c.lipsync_url || c.video_url).length > 1) ? '各片段独立下载' : ''}
+                {job.clips.filter(c => c.lipsync_url || c.video_url).length > 1
+                  ? (lang === 'zh' ? '各片段独立下载' : 'Download individual clips')
+                  : ''}
               </h2>
               <div className="grid grid-cols-2 gap-3">
                 {job.clips.filter(c => c.lipsync_url || c.video_url).map(clip => (
@@ -155,7 +173,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     />
                     <a href={clip.lipsync_url || clip.video_url} download
                       className="flex items-center justify-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors">
-                      <Download size={11} /> 片段 {clip.clip_index + 1}
+                      <Download size={11} /> {t(lang, UI.jobs.downloadClip)} {clip.clip_index + 1}
                     </a>
                   </div>
                 ))}
@@ -168,8 +186,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {/* 失败 */}
       {isFailed && (
         <div className="p-4 rounded-xl bg-red-900/20 border border-red-800 text-red-400 text-sm">
-          <div className="font-medium mb-1">生成失败</div>
-          <div className="text-red-500">{job.error_msg || '未知错误'}</div>
+          <div className="font-medium mb-1">{lang === 'zh' ? '生成失败' : 'Generation failed'}</div>
+          <div className="text-red-500">{job.error_msg || (lang === 'zh' ? '未知错误' : 'Unknown error')}</div>
         </div>
       )}
     </div>

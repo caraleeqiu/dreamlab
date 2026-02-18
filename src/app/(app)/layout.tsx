@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/sidebar'
 import CreditBadge from '@/components/layout/credit-badge'
+import { LanguageProvider } from '@/context/language-context'
+import type { Language } from '@/types'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -14,9 +16,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq('id', user.id)
     .single()
 
+  const lang = (profile?.language ?? 'zh') as Language
+
   return (
+    <LanguageProvider lang={lang}>
     <div className="flex h-screen bg-zinc-950">
-      <Sidebar language={profile?.language ?? 'zh'} />
+      <Sidebar language={lang} />
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* 顶部栏 */}
         <header className="h-14 border-b border-zinc-800 flex items-center justify-between px-4 md:px-6 shrink-0">
@@ -33,5 +38,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+    </LanguageProvider>
   )
 }

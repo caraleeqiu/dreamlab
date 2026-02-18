@@ -3,31 +3,36 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { zhCN, enUS } from 'date-fns/locale'
 import { Video, Loader2, CheckCircle2, XCircle, Clock, ArrowRight } from 'lucide-react'
 import type { Job } from '@/types'
-
-const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  pending:    { label: '等待中',  icon: <Clock size={14} />,      color: 'text-zinc-400' },
-  scripting:  { label: '生成脚本', icon: <Loader2 size={14} className="animate-spin" />, color: 'text-blue-400' },
-  generating: { label: '生成视频', icon: <Loader2 size={14} className="animate-spin" />, color: 'text-violet-400' },
-  lipsync:    { label: '口型对齐', icon: <Loader2 size={14} className="animate-spin" />, color: 'text-violet-400' },
-  stitching:  { label: '合并中',  icon: <Loader2 size={14} className="animate-spin" />, color: 'text-violet-400' },
-  done:       { label: '完成',    icon: <CheckCircle2 size={14} />, color: 'text-green-400' },
-  failed:     { label: '失败',    icon: <XCircle size={14} />,     color: 'text-red-400' },
-}
-
-const TYPE_LABEL: Record<string, string> = {
-  podcast: '视频播客', remix: '爆款二创', edu: '网红科普', anime: '动漫营销', trending: '看灵感', story: '故事短片',
-}
+import { useLanguage } from '@/context/language-context'
+import { t, UI } from '@/lib/i18n'
 
 export default function JobsPage() {
+  const lang = useLanguage()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
 
+  const STATUS_CONFIG = {
+    pending:    { label: t(lang, UI.jobs.status.pending),    icon: <Clock size={14} />,      color: 'text-zinc-400' },
+    scripting:  { label: t(lang, UI.jobs.status.scripting),  icon: <Loader2 size={14} className="animate-spin" />, color: 'text-blue-400' },
+    generating: { label: t(lang, UI.jobs.status.generating), icon: <Loader2 size={14} className="animate-spin" />, color: 'text-violet-400' },
+    lipsync:    { label: t(lang, UI.jobs.status.lipsync),    icon: <Loader2 size={14} className="animate-spin" />, color: 'text-violet-400' },
+    stitching:  { label: t(lang, UI.jobs.status.stitching),  icon: <Loader2 size={14} className="animate-spin" />, color: 'text-violet-400' },
+    done:       { label: t(lang, UI.jobs.status.done),       icon: <CheckCircle2 size={14} />, color: 'text-green-400' },
+    failed:     { label: t(lang, UI.jobs.status.failed),     icon: <XCircle size={14} />,     color: 'text-red-400' },
+  } as Record<string, { label: string; icon: React.ReactNode; color: string }>
+
+  const TYPE_LABEL = Object.fromEntries(
+    Object.entries(UI.jobs.types).map(([k, v]) => [k, t(lang, v)])
+  )
+
+  const dateLocale = lang === 'zh' ? zhCN : enUS
+
   useEffect(() => {
     fetchJobs()
-    const timer = setInterval(fetchJobs, 10000) // 每10秒刷新
+    const timer = setInterval(fetchJobs, 10000)
     return () => clearInterval(timer)
   }, [])
 
@@ -43,8 +48,8 @@ export default function JobsPage() {
       <div className="flex items-center gap-3 mb-6">
         <Video size={20} className="text-zinc-400" />
         <div>
-          <h1 className="text-2xl font-bold text-white">任务</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">视频生成记录 · 每10秒自动刷新</p>
+          <h1 className="text-2xl font-bold text-white">{t(lang, UI.jobs.title)}</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{t(lang, UI.jobs.subtitle)}</p>
         </div>
       </div>
 
@@ -57,9 +62,9 @@ export default function JobsPage() {
       ) : jobs.length === 0 ? (
         <div className="text-center py-20 text-zinc-600">
           <Video size={40} className="mx-auto mb-3 opacity-30" />
-          <p>还没有任务</p>
+          <p>{t(lang, UI.jobs.empty)}</p>
           <Link href="/studio" className="text-sm text-violet-400 hover:text-violet-300 mt-2 inline-block">
-            去内容工厂创建
+            {t(lang, UI.jobs.goCreate)}
           </Link>
         </div>
       ) : (
@@ -80,12 +85,12 @@ export default function JobsPage() {
                         {status.label}
                       </span>
                     </div>
-                    <h3 className="font-medium text-white text-sm truncate">{job.title || '无标题'}</h3>
+                    <h3 className="font-medium text-white text-sm truncate">{job.title || t(lang, UI.jobs.untitled)}</h3>
                     <div className="flex gap-3 mt-1">
                       <span className="text-xs text-zinc-600">
-                        {formatDistanceToNow(new Date(job.created_at), { locale: zhCN, addSuffix: true })}
+                        {formatDistanceToNow(new Date(job.created_at), { locale: dateLocale, addSuffix: true })}
                       </span>
-                      <span className="text-xs text-zinc-700">{job.credit_cost} 积分</span>
+                      <span className="text-xs text-zinc-700">{job.credit_cost} {t(lang, UI.jobs.credits)}</span>
                       {job.platform && <span className="text-xs text-zinc-700">{job.platform}</span>}
                     </div>
                   </div>
