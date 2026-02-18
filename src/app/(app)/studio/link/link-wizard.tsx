@@ -6,9 +6,8 @@ import { ChevronLeft, Loader2, RefreshCw, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { PLATFORMS } from '@/lib/language'
+import { UI, t } from '@/lib/i18n'
 import type { Language, Influencer, ScriptClip } from '@/types'
-
-const STEPS = ['输入链接', '内容提取', '选网红', '节目设置', '分镜预览', '确认生成']
 
 interface Props { lang: Language; credits: number; influencers: Influencer[] }
 
@@ -17,26 +16,18 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
 
-  // Step 0
   const [url, setUrl] = useState('')
-
-  // Step 1
   const [extractedTitle, setExtractedTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [extractError, setExtractError] = useState('')
-
-  // Step 2
   const [selectedInfluencer, setSelectedInfluencer] = useState<Influencer | null>(null)
-
-  // Step 3
   const [platform, setPlatform] = useState(PLATFORMS[lang][0].value)
   const [duration, setDuration] = useState(180)
-
-  // Step 4
   const [storyboard, setStoryboard] = useState<ScriptClip[]>([])
 
   const platforms = PLATFORMS[lang]
   const aspectRatio = platforms.find(p => p.value === platform)?.aspectRatio ?? '9:16'
+  const STEPS = UI.wizard.linkSteps[lang]
 
   async function extractContent() {
     setLoading(true)
@@ -47,7 +38,7 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
     })
     const data = await res.json()
     if (!res.ok) {
-      setExtractError(data.error || '提取失败')
+      setExtractError(data.error || t(lang, UI.common.error))
     } else {
       setExtractedTitle(data.title || '')
       setSummary(data.summary || '')
@@ -60,14 +51,7 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
     const inf = selectedInfluencer ?? influencers[0]
     const res = await fetch('/api/studio/storyboard', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: summary,
-        influencers: inf ? [inf] : [],
-        platform,
-        duration_s: duration,
-        lang,
-        job_type: 'link',
-      }),
+      body: JSON.stringify({ content: summary, influencers: inf ? [inf] : [], platform, duration_s: duration, lang, job_type: 'link' }),
     })
     const data = await res.json()
     setStoryboard(Array.isArray(data.script) ? data.script : [])
@@ -79,25 +63,20 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
     const inf = selectedInfluencer ?? influencers[0]
     const res = await fetch('/api/studio/link', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: extractedTitle || url,
-        source_url: url,
-        platform,
-        aspect_ratio: aspectRatio,
-        duration_s: duration,
-        influencer_ids: inf ? [inf.id] : [],
-        script: storyboard,
-        language: lang,
-      }),
+      body: JSON.stringify({ title: extractedTitle || url, source_url: url, platform, aspect_ratio: aspectRatio, duration_s: duration, influencer_ids: inf ? [inf.id] : [], script: storyboard, language: lang }),
     })
     const data = await res.json()
     setLoading(false)
     if (data.job_id) router.push(`/jobs/${data.job_id}`)
   }
 
+  const tableHeaders = lang === 'zh'
+    ? ['#', '景别', '运动', '台词', 'BGM', '旁白', '时长']
+    : ['#', 'Shot', 'Motion', 'Dialogue', 'BGM', 'Voiceover', 'Dur']
+
   return (
     <div className="max-w-2xl mx-auto">
-      {/* 步骤指示 */}
+      {/* Step indicator */}
       <div className="flex items-center gap-0 mb-8">
         {STEPS.map((s, i) => (
           <div key={s} className="flex items-center flex-1">
@@ -113,33 +92,29 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
         ))}
       </div>
 
-      {/* Step 0: 输入链接 */}
+      {/* Step 0: URL input */}
       {step === 0 && (
         <div className="space-y-3">
-          <p className="text-sm text-zinc-400">粘贴文章或网页链接，AI自动提炼内容并生成视频。</p>
+          <p className="text-sm text-zinc-400">{t(lang, UI.wizard.linkDesc)}</p>
           <div className="space-y-1">
-            <input
-              type="url"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="https://..."
+            <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..."
               className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
             />
           </div>
           <div className="text-xs text-zinc-600 space-y-1">
-            <p>支持：普通网页文章、知乎、YouTube（仅标题+描述）</p>
-            <p>微信公众号文章可能需要手动复制正文，改用「自定义脚本」</p>
+            <p>{lang === 'zh' ? '支持：普通网页文章、知乎、YouTube（仅标题+描述）' : 'Supports: web articles, Zhihu, YouTube (title + description only)'}</p>
+            <p>{lang === 'zh' ? '微信公众号文章可能需要手动复制正文，改用「自定义脚本」' : 'WeChat articles may need manual copy — use Custom Script instead'}</p>
           </div>
         </div>
       )}
 
-      {/* Step 1: 内容提取 */}
+      {/* Step 1: Content extraction */}
       {step === 1 && (
         <div className="space-y-3">
           {loading ? (
             <div className="flex flex-col items-center py-12 gap-3 text-zinc-500">
               <Loader2 size={24} className="animate-spin text-violet-400" />
-              <span className="text-sm">正在抓取并提炼内容...</span>
+              <span className="text-sm">{t(lang, UI.wizard.linkExtracting)}</span>
             </div>
           ) : extractError ? (
             <div className="space-y-4">
@@ -148,135 +123,109 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
                 <div className="text-sm text-red-400">{extractError}</div>
               </div>
               <Button onClick={extractContent} variant="outline" className="border-zinc-700 text-zinc-400 w-full">
-                <RefreshCw size={14} className="mr-1.5" /> 重试
+                <RefreshCw size={14} className="mr-1.5" /> {t(lang, UI.common.retry)}
               </Button>
             </div>
           ) : (
             <>
-              {extractedTitle && (
-                <div className="text-sm font-medium text-white">{extractedTitle}</div>
-              )}
+              {extractedTitle && <div className="text-sm font-medium text-white">{extractedTitle}</div>}
               <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-400">AI 提炼摘要，可编辑</p>
-                <Button variant="ghost" size="sm" onClick={extractContent}
-                  className="text-zinc-500 hover:text-white text-xs gap-1">
-                  <RefreshCw size={12} /> 重新提取
+                <p className="text-sm text-zinc-400">{t(lang, UI.wizard.linkSummary)}</p>
+                <Button variant="ghost" size="sm" onClick={extractContent} className="text-zinc-500 hover:text-white text-xs gap-1">
+                  <RefreshCw size={12} /> {t(lang, UI.wizard.linkReExtract)}
                 </Button>
               </div>
-              <Textarea
-                value={summary}
-                onChange={e => setSummary(e.target.value)}
-                className="bg-zinc-800 border-zinc-700 text-white resize-none min-h-48"
-                rows={10}
-              />
-              <p className="text-xs text-zinc-600">{summary.length} 字</p>
+              <Textarea value={summary} onChange={e => setSummary(e.target.value)}
+                className="bg-zinc-800 border-zinc-700 text-white resize-none min-h-48" rows={10} />
+              <p className="text-xs text-zinc-600">{summary.length} {lang === 'zh' ? '字' : 'chars'}</p>
             </>
           )}
         </div>
       )}
 
-      {/* Step 2: 选网红 */}
+      {/* Step 2: Choose influencer */}
       {step === 2 && (
         <div className="space-y-3">
-          <p className="text-sm text-zinc-400">选择一个网红主持此内容</p>
+          <p className="text-sm text-zinc-400">{t(lang, UI.wizard.linkPickInf)}</p>
           <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-1">
             {influencers.map(inf => {
               const selected = selectedInfluencer?.id === inf.id
               return (
                 <button key={inf.id} onClick={() => setSelectedInfluencer(inf)}
-                  className={`p-3 rounded-lg border text-left transition-all
-                    ${selected ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-800 hover:border-zinc-600'}`}>
+                  className={`p-3 rounded-lg border text-left transition-all ${selected ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-800 hover:border-zinc-600'}`}>
                   <div className="font-medium text-white text-sm">{inf.name}</div>
                   <div className="text-zinc-500 text-xs mt-0.5 truncate">{inf.tagline}</div>
                 </button>
               )
             })}
           </div>
-          {!selectedInfluencer && (
-            <p className="text-xs text-zinc-600">不选则使用默认第一位网红</p>
-          )}
+          {!selectedInfluencer && <p className="text-xs text-zinc-600">{t(lang, UI.wizard.noDefault)}</p>}
         </div>
       )}
 
-      {/* Step 3: 节目设置 */}
+      {/* Step 3: Setup */}
       {step === 3 && (
         <div className="space-y-6">
           <div className="space-y-2">
-            <label className="text-sm text-zinc-400">发布平台</label>
+            <label className="text-sm text-zinc-400">{t(lang, UI.wizard.platform)}</label>
             <div className="flex flex-wrap gap-2">
               {platforms.map(p => (
                 <button key={p.value} onClick={() => setPlatform(p.value)}
-                  className={`px-3.5 py-2 rounded-lg border text-sm transition-colors
-                    ${platform === p.value ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400 hover:text-white'}`}>
-                  {p.label}
-                  <span className="ml-1 text-xs text-zinc-600">{p.aspectRatio}</span>
+                  className={`px-3.5 py-2 rounded-lg border text-sm transition-colors ${platform === p.value ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400 hover:text-white'}`}>
+                  {p.label}<span className="ml-1 text-xs text-zinc-600">{p.aspectRatio}</span>
                 </button>
               ))}
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-zinc-400">视频时长</label>
+            <label className="text-sm text-zinc-400">{t(lang, UI.wizard.duration)}</label>
             <div className="flex flex-wrap gap-2">
               {[60, 180, 300, 600].map(d => (
                 <button key={d} onClick={() => setDuration(d)}
-                  className={`px-3.5 py-2 rounded-lg border text-sm transition-colors
-                    ${duration === d ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400'}`}>
-                  {d < 60 ? `${d}s` : `${d / 60}分钟`}
+                  className={`px-3.5 py-2 rounded-lg border text-sm transition-colors ${duration === d ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400'}`}>
+                  {d < 60 ? `${d}s` : `${d / 60}${t(lang, UI.wizard.min)}`}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-zinc-600">约 {Math.floor(duration / 15)} 个切片</p>
+            <p className="text-xs text-zinc-600">
+              {lang === 'zh' ? `约 ${Math.floor(duration / 15)} 个切片` : `~${Math.floor(duration / 15)} clips`}
+            </p>
           </div>
         </div>
       )}
 
-      {/* Step 4: 分镜预览（表格） */}
+      {/* Step 4: Storyboard preview */}
       {step === 4 && (
         <div className="space-y-3">
           {loading ? (
             <div className="flex flex-col items-center py-12 gap-3 text-zinc-500">
               <Loader2 size={24} className="animate-spin text-violet-400" />
-              <span className="text-sm">AI 生成分镜中...</span>
+              <span className="text-sm">{lang === 'zh' ? 'AI 生成分镜中...' : 'AI generating storyboard...'}</span>
             </div>
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-500">{storyboard.length} 个镜头</p>
-                <Button variant="ghost" size="sm" onClick={generateStoryboard}
-                  className="text-zinc-500 hover:text-white text-xs gap-1">
-                  <RefreshCw size={12} /> 重新生成
+                <p className="text-sm text-zinc-500">{storyboard.length} {t(lang, UI.wizard.shots)}</p>
+                <Button variant="ghost" size="sm" onClick={generateStoryboard} className="text-zinc-500 hover:text-white text-xs gap-1">
+                  <RefreshCw size={12} /> {t(lang, UI.wizard.regenerateBtn)}
                 </Button>
               </div>
               <div className="overflow-x-auto rounded-xl border border-zinc-800">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-zinc-800 bg-zinc-900">
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium w-8">#</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">景别</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">运动</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">台词</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">BGM</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">旁白</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium w-8">时长</th>
+                      {tableHeaders.map(h => <th key={h} className="px-3 py-2 text-left text-zinc-500 font-medium">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {storyboard.map((clip, i) => (
                       <tr key={i} className={`border-b border-zinc-800/60 ${i % 2 === 0 ? 'bg-zinc-900' : 'bg-zinc-900/50'}`}>
                         <td className="px-3 py-2 text-zinc-600">{clip.index + 1}</td>
-                        <td className="px-3 py-2">
-                          <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.shot_type || '—'}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.camera_movement || '—'}</span>
-                        </td>
-                        <td className="px-3 py-2 text-white max-w-48">
-                          <span className="line-clamp-2">{clip.dialogue}</span>
-                        </td>
+                        <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.shot_type || '—'}</span></td>
+                        <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.camera_movement || '—'}</span></td>
+                        <td className="px-3 py-2 text-white max-w-48"><span className="line-clamp-2">{clip.dialogue}</span></td>
                         <td className="px-3 py-2 text-zinc-400">{clip.bgm || '—'}</td>
-                        <td className="px-3 py-2 text-zinc-500 max-w-32">
-                          <span className="line-clamp-1">{clip.voiceover || '—'}</span>
-                        </td>
+                        <td className="px-3 py-2 text-zinc-500 max-w-32"><span className="line-clamp-1">{clip.voiceover || '—'}</span></td>
                         <td className="px-3 py-2 text-zinc-600">{clip.duration}s</td>
                       </tr>
                     ))}
@@ -288,65 +237,54 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
         </div>
       )}
 
-      {/* Step 5: 确认生成 */}
+      {/* Step 5: Confirm */}
       {step === 5 && (
         <div className="space-y-6">
           <div className="p-4 rounded-xl bg-zinc-800 space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-zinc-400">来源</span><span className="text-white truncate max-w-48 text-right">{extractedTitle || url}</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">网红</span><span className="text-white">{selectedInfluencer?.name ?? influencers[0]?.name}</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">平台</span><span className="text-white">{platforms.find(p => p.value === platform)?.label} ({aspectRatio})</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">时长</span><span className="text-white">约 {Math.floor(duration / 60)} 分钟</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">切片数</span><span className="text-white">{storyboard.length} 个</span></div>
-            <div className="flex justify-between font-medium"><span className="text-zinc-400">费用</span><span className="text-violet-400">15 积分</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{lang === 'zh' ? '来源' : 'Source'}</span><span className="text-white truncate max-w-48 text-right">{extractedTitle || url}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{t(lang, UI.wizard.pickInfluencer)}</span><span className="text-white">{selectedInfluencer?.name ?? influencers[0]?.name}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{t(lang, UI.wizard.platform)}</span><span className="text-white">{platforms.find(p => p.value === platform)?.label} ({aspectRatio})</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{t(lang, UI.wizard.duration)}</span><span className="text-white">{Math.floor(duration / 60)} {t(lang, UI.wizard.min)}</span></div>
+            <div className="flex justify-between"><span className="text-zinc-400">{lang === 'zh' ? '切片数' : 'Clips'}</span><span className="text-white">{storyboard.length}</span></div>
+            <div className="flex justify-between font-medium"><span className="text-zinc-400">{t(lang, UI.wizard.cost)}</span><span className="text-violet-400">15 {t(lang, UI.wizard.credits)}</span></div>
           </div>
-          {credits < 15 && (
-            <p className="text-sm text-red-400">积分不足（当前 {credits} 积分），请先充值</p>
-          )}
+          {credits < 15 && <p className="text-sm text-red-400">{t(lang, UI.wizard.insufficient)}<a href="/credits" className="underline ml-1">{t(lang, UI.wizard.topUp)}</a></p>}
         </div>
       )}
 
-      {/* 底部按钮 */}
+      {/* Bottom navigation */}
       <div className="flex justify-between mt-8 pt-6 border-t border-zinc-800">
-        <Button variant="ghost" onClick={() => step === 0 ? router.back() : setStep(s => s - 1)}
-          className="text-zinc-400 hover:text-white">
-          <ChevronLeft size={16} className="mr-1" />{step === 0 ? '返回' : '上一步'}
+        <Button variant="ghost" onClick={() => step === 0 ? router.back() : setStep(s => s - 1)} className="text-zinc-400 hover:text-white">
+          <ChevronLeft size={16} className="mr-1" />{step === 0 ? t(lang, UI.wizard.backBtn) : t(lang, UI.wizard.prevBtn)}
         </Button>
-
         {step === 0 && (
-          <Button onClick={() => { setStep(1); extractContent() }}
-            disabled={!url.trim() || !url.startsWith('http')}
-            className="bg-violet-600 hover:bg-violet-700 text-white">
-            提取内容
+          <Button onClick={() => { setStep(1); extractContent() }} disabled={!url.trim() || !url.startsWith('http')} className="bg-violet-600 hover:bg-violet-700 text-white">
+            {lang === 'zh' ? '提取内容' : 'Extract Content'}
           </Button>
         )}
         {step === 1 && !loading && !extractError && (
-          <Button onClick={() => setStep(2)} disabled={!summary.trim()}
-            className="bg-violet-600 hover:bg-violet-700 text-white">
-            下一步：选网红
+          <Button onClick={() => setStep(2)} disabled={!summary.trim()} className="bg-violet-600 hover:bg-violet-700 text-white">
+            {lang === 'zh' ? '下一步：选网红' : 'Next: Influencer'}
           </Button>
         )}
         {step === 2 && (
-          <Button onClick={() => setStep(3)}
-            className="bg-violet-600 hover:bg-violet-700 text-white">
-            下一步：节目设置
+          <Button onClick={() => setStep(3)} className="bg-violet-600 hover:bg-violet-700 text-white">
+            {lang === 'zh' ? '下一步：节目设置' : 'Next: Setup'}
           </Button>
         )}
         {step === 3 && (
-          <Button onClick={() => { setStep(4); generateStoryboard() }}
-            className="bg-violet-600 hover:bg-violet-700 text-white">
-            AI 生成分镜
+          <Button onClick={() => { setStep(4); generateStoryboard() }} className="bg-violet-600 hover:bg-violet-700 text-white">
+            {lang === 'zh' ? 'AI 生成分镜' : 'AI Storyboard'}
           </Button>
         )}
         {step === 4 && !loading && (
-          <Button onClick={() => setStep(5)} disabled={storyboard.length === 0}
-            className="bg-violet-600 hover:bg-violet-700 text-white">
-            下一步：确认生成
+          <Button onClick={() => setStep(5)} disabled={storyboard.length === 0} className="bg-violet-600 hover:bg-violet-700 text-white">
+            {lang === 'zh' ? '下一步：确认生成' : 'Next: Confirm'}
           </Button>
         )}
         {step === 5 && (
-          <Button onClick={submitJob} disabled={loading || credits < 15}
-            className="bg-violet-600 hover:bg-violet-700 text-white">
-            {loading ? <><Loader2 size={14} className="animate-spin mr-1.5" />提交中...</> : '确认生成 (15积分)'}
+          <Button onClick={submitJob} disabled={loading || credits < 15} className="bg-violet-600 hover:bg-violet-700 text-white">
+            {loading ? <><Loader2 size={14} className="animate-spin mr-1.5" />{t(lang, UI.wizard.generating)}</> : `${t(lang, UI.wizard.confirmBtn)} (15 ${t(lang, UI.wizard.credits)})`}
           </Button>
         )}
       </div>

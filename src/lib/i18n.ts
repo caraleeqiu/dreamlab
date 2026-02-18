@@ -176,6 +176,116 @@ export const UI = {
     customDuration:{ zh: '自定义', en: 'Custom' },
   },
 
+  // ─── Shared wizard strings ─────────────────────────────────────────────────
+  wizard: {
+    nextBtn:        { zh: '下一步', en: 'Next' },
+    prevBtn:        { zh: '上一步', en: 'Back' },
+    backBtn:        { zh: '返回', en: 'Back' },
+    confirmBtn:     { zh: '确认生成', en: 'Generate' },
+    regenerateBtn:  { zh: '重新生成', en: 'Regenerate' },
+    generating:     { zh: '生成中...', en: 'Generating...' },
+    scriptLoading:  { zh: '生成脚本...', en: 'Generating script...' },
+    confirmScript:  { zh: '确认脚本', en: 'Confirm Script' },
+    scriptPreview:  { zh: '脚本预览', en: 'Script Preview' },
+    platform:       { zh: '发布平台', en: 'Platform' },
+    duration:       { zh: '视频时长', en: 'Duration' },
+    pickInfluencer: { zh: '选择网红', en: 'Choose Influencer' },
+    cost:           { zh: '消耗积分', en: 'Cost' },
+    balance:        { zh: '当前余额', en: 'Balance' },
+    remaining:      { zh: '剩余', en: 'remaining' },
+    credits:        { zh: '积分', en: 'credits' },
+    insufficient:   { zh: '积分不足，请先', en: 'Insufficient credits, please' },
+    topUp:          { zh: '充值', en: 'top up' },
+    noDefault:      { zh: '不选则使用默认', en: 'Default if none selected' },
+    segment:        { zh: '片段', en: 'Segment' },
+    shots:          { zh: '个镜头', en: 'shots' },
+    config:         { zh: '生成配置', en: 'Configuration' },
+    // Duration labels
+    sec:            { zh: '秒', en: 's' },
+    min:            { zh: '分钟', en: 'min' },
+    // Depth
+    depthSimple:    { zh: '入门', en: 'Beginner' },
+    depthMedium:    { zh: '进阶', en: 'Intermediate' },
+    depthDeep:      { zh: '深度', en: 'Expert' },
+    depthSimpleDesc:{ zh: '小白也能懂', en: 'Easy to understand' },
+    depthMediumDesc:{ zh: '有基础最佳', en: 'Some background helps' },
+    depthDeepDesc:  { zh: '专业级分析', en: 'Professional analysis' },
+    // Edu
+    eduTitle:       { zh: '网红科普', en: 'Edu Video' },
+    eduSubtitle:    { zh: '输入话题，网红用自己的风格讲给你听', en: 'Enter a topic, your influencer explains it in their style' },
+    eduTopic:       { zh: '科普话题', en: 'Topic' },
+    eduDepth:       { zh: '讲解深度', en: 'Depth' },
+    eduPickInf:     { zh: '选择科普网红', en: 'Choose an influencer' },
+    eduInf:         { zh: '主讲网红', en: 'Influencer' },
+    // Edu steps
+    eduSteps: {
+      zh: ['选话题', '选网红', '平台', '预览脚本', '生成'],
+      en: ['Topic', 'Influencer', 'Platform', 'Script', 'Generate'],
+    },
+    // Remix
+    remixTitle:     { zh: '爆款二创', en: 'Video Remix' },
+    remixSubtitle:  { zh: '上传原视频，AI改编成你的网红风格', en: 'Upload a video, AI remakes it in your influencer style' },
+    remixVideoLink: { zh: '视频链接', en: 'Video URL' },
+    remixTitle2:    { zh: '视频标题（可选）', en: 'Video title (optional)' },
+    remixTitlePH:   { zh: '原视频标题，方便识别', en: 'Original title, for reference' },
+    remixStyle:     { zh: '二创方式', en: 'Remix style' },
+    remixPickInf:   { zh: '选择用哪位网红来二创这个视频', en: 'Choose an influencer for this remix' },
+    remixSteps: {
+      zh: ['选视频', '选网红', '平台设置', '确认生成'],
+      en: ['Video', 'Influencer', 'Platform', 'Confirm'],
+    },
+    remixStyles: {
+      commentary: { zh: '网红解说', en: 'Commentary', desc: { zh: '以网红口吻重新解读', en: 'Reinterpreted in influencer voice' } },
+      reaction:   { zh: '反应视频', en: 'Reaction',   desc: { zh: '网红边看边评论', en: 'Influencer reacts and comments' } },
+      duet:       { zh: '合拍二创', en: 'Duet',       desc: { zh: '与原视频并排呈现', en: 'Side-by-side with original' } },
+      remake:     { zh: '同款翻拍', en: 'Remake',     desc: { zh: '用网红风格重拍一遍', en: 'Remake in influencer style' } },
+    },
+    // Anime
+    animeTitle:     { zh: '动漫营销视频', en: 'Anime Marketing' },
+    animeSubtitle:  { zh: '品牌产品 × AI网红 → 动漫风格营销短片', en: 'Brand × AI influencer → anime marketing clip' },
+    animeBrand:     { zh: '品牌名称', en: 'Brand name' },
+    animeProduct:   { zh: '产品名称', en: 'Product name' },
+    animePoints:    { zh: '产品卖点（可选）', en: 'Key selling points (optional)' },
+    animeAudience:  { zh: '目标受众（可选）', en: 'Target audience (optional)' },
+    animePickInf:   { zh: '选择品牌代言IP（推荐虚拟/品牌类网红）', en: 'Choose a brand IP (virtual/brand influencers recommended)' },
+    animeSteps: {
+      zh: ['品牌信息', '选网红', '选风格', '预览脚本', '生成'],
+      en: ['Brand', 'Influencer', 'Style', 'Script', 'Generate'],
+    },
+    // Story
+    storyTitle:     { zh: '故事短片', en: 'Story Film' },
+    storySubtitle:  { zh: '输入剧情创意，AI生成有叙事的剧情短片', en: 'Enter a story idea, AI generates a narrative short film' },
+    storyTitleOpt:  { zh: '故事标题（可选）', en: 'Story title (optional)' },
+    storyIdea:      { zh: '故事创意 *', en: 'Story idea *' },
+    storyCast:      { zh: '选择故事演员（最多3位，网红将扮演故事中的角色）', en: 'Choose cast (max 3, influencers will play the roles)' },
+    storySelected:  { zh: '已选：', en: 'Selected: ' },
+    storySteps: {
+      zh: ['故事创意', '选演员', '平台', '预览脚本', '生成'],
+      en: ['Story', 'Cast', 'Platform', 'Script', 'Generate'],
+    },
+    // Script
+    scriptTitle:    { zh: '自定义脚本', en: 'Custom Script' },
+    scriptSubtitle: { zh: '粘贴你的原始脚本或文章，AI将按照所选网红风格润色为视频播讲稿', en: 'Paste your script or article, AI will refine it in your influencer style' },
+    scriptPH:       { zh: '在此粘贴脚本、文章或创作思路...', en: 'Paste your script, article, or creative idea here...' },
+    scriptPickInf:  { zh: '选择网红，AI将按其语言风格和人设优化脚本', en: 'Choose an influencer, AI will adapt the script to their style' },
+    scriptSteps: {
+      zh: ['写脚本', '选网红', 'AI优化', '节目设置', '分镜预览', '确认生成'],
+      en: ['Script', 'Influencer', 'AI Polish', 'Setup', 'Storyboard', 'Confirm'],
+    },
+    // Link
+    linkTitle:      { zh: '链接提取', en: 'Link Extract' },
+    linkSubtitle:   { zh: '贴URL，AI提炼内容，一键生成视频', en: 'Paste a URL, AI extracts content and generates video' },
+    linkDesc:       { zh: '粘贴文章或网页链接，AI自动提炼内容并生成视频。', en: 'Paste an article or webpage URL, AI automatically extracts content and generates a video.' },
+    linkExtracting: { zh: '正在抓取并提炼内容...', en: 'Fetching and extracting content...' },
+    linkSummary:    { zh: 'AI 提炼摘要，可编辑', en: 'AI-extracted summary, editable' },
+    linkReExtract:  { zh: '重新提取', en: 'Re-extract' },
+    linkPickInf:    { zh: '选择一个网红主持此内容', en: 'Choose an influencer to host this content' },
+    linkSteps: {
+      zh: ['输入链接', '内容提取', '选网红', '节目设置', '分镜预览', '确认生成'],
+      en: ['URL', 'Extract', 'Influencer', 'Setup', 'Storyboard', 'Confirm'],
+    },
+  },
+
   // ─── Common ────────────────────────────────────────────────────────────────
   common: {
     loading:   { zh: '加载中...', en: 'Loading...' },

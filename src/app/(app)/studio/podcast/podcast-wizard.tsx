@@ -25,7 +25,9 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
   const [activeCategory, setActiveCategory] = useState(TOPIC_CATEGORIES[lang][0])
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([])
   const [customText, setCustomText] = useState('')
-  const [inputMode, setInputMode] = useState<'trending' | 'custom'>(initialMode === 'custom' ? 'custom' : 'trending')
+  const [inputMode, setInputMode] = useState<'trending' | 'custom'>(
+    initialMode === 'custom' || initialMode === 'import' ? 'custom' : 'trending'
+  )
 
   // Step 1
   const [perspective, setPerspective] = useState('')
