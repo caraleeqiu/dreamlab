@@ -84,7 +84,7 @@ export default async function StudioPage() {
         <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">
           {lang === 'zh' ? '内容原创' : 'Original Content'}
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {ORIGINAL_LINES.map(line => <LineCard key={line.key} line={line} lang={lang} />)}
         </div>
       </section>

@@ -1,238 +1,237 @@
 {
-  "updated_at": "2026-02-18T10:06:00.000Z",
   "zh": {
-    "科技": [
-      {
-        "id": "zh-tech-1",
-        "title": "春晚机器人炸翻外网 网友逐帧研究",
-        "angle": "宇树科技春晚表演背后的技术突破，这次到底有多难",
-        "source": "今日头条",
-        "date": "2026-02-18",
-        "category": "科技",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-tech-2",
-        "title": "春晚绝活升级背后：中国人形机器人技术有了哪些新突破？",
-        "angle": "从春晚现象看中国机器人产业的真实竞争力与泡沫",
-        "source": "澎湃新闻",
-        "date": "2026-02-18",
-        "category": "科技",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-tech-3",
-        "title": "Meta将部署数百万颗英伟达芯片",
-        "angle": "AI基建军备竞赛升级，谁在烧钱，谁最后赚到钱",
-        "source": "今日头条",
-        "date": "2026-02-18",
-        "category": "科技",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-tech-4",
-        "title": "宇树科技春晚款机器人售价208850元",
-        "angle": "20万的机器人，谁在买？消费级机器人的真实市场在哪",
-        "source": "微博",
-        "date": "2026-02-18",
-        "category": "科技",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-tech-5",
-        "title": "Anthropic Sonnet 4.6操作电脑接近人类，定价仅1/5",
-        "angle": "AI操作电脑又进一步，白领的工作边界在哪里",
-        "source": "华尔街见闻",
-        "date": "2026-02-18",
-        "category": "科技",
-        "lang": "zh"
-      }
-    ],
     "娱乐": [
       {
         "id": "zh-ent-1",
-        "title": "王楚然春晚20秒镜头破2亿阅读量",
-        "angle": "20秒，2亿，这届观众和流量的关系到底怎么了",
-        "source": "百度热搜",
-        "date": "2026-02-18",
-        "category": "娱乐",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-ent-2",
-        "title": "宋小宝小品被说翻车，春晚喜剧到底难在哪",
-        "angle": "春晚喜剧的笑和不笑，谁定义了"好笑"",
-        "source": "微博",
-        "date": "2026-02-18",
-        "category": "娱乐",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-ent-3",
-        "title": "春节档电影总票房破16亿，《飞驰人生3》夺冠",
-        "angle": "春节档16亿，中国电影市场是真回暖还是一次性消费",
-        "source": "抖音",
-        "date": "2026-02-18",
-        "category": "娱乐",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-ent-4",
-        "title": "B站春晚口碑完胜，年轻人的晚会在哪里",
-        "angle": "B站春晚和央视春晚，两种价值观的较量",
+        "title": "宋小宝小品被说翻车",
+        "angle": "春晚喜剧的笑点门槛为何年年争议",
         "source": "bilibili热搜",
         "date": "2026-02-18",
         "category": "娱乐",
         "lang": "zh"
       },
       {
+        "id": "zh-ent-2",
+        "title": "王楚然春晚20秒镜头破2亿阅读量",
+        "angle": "20秒镜头背后的流量密码",
+        "source": "百度热搜",
+        "date": "2026-02-18",
+        "category": "娱乐",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-ent-3",
+        "title": "B站春晚 赢麻了",
+        "angle": "B站凭什么抢走春晚语言类节目的份额",
+        "source": "微博",
+        "date": "2026-02-18",
+        "category": "娱乐",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-ent-4",
+        "title": "岳云鹏回应和赵雅芝合唱捂嘴偷笑",
+        "angle": "国民喜剧人的真实与表演之间",
+        "source": "今日头条",
+        "date": "2026-02-18",
+        "category": "娱乐",
+        "lang": "zh"
+      },
+      {
         "id": "zh-ent-5",
-        "title": "春节里的传统文化含量拉满，非遗热是文化自信还是商业包装",
-        "angle": "春晚十二花神、龟兹壁画背后，传统文化复兴的真相",
-        "source": "抖音",
+        "title": "李子柒在春晚后台手搓非遗饰品",
+        "angle": "顶流博主如何用非遗重新出圈",
+        "source": "微博",
         "date": "2026-02-18",
         "category": "娱乐",
         "lang": "zh"
       }
     ],
-    "时事政治": [
+    "科技": [
       {
-        "id": "zh-news-1",
-        "title": "日本高市早苗内阁集体辞职",
-        "angle": "日本政局大洗牌，这对中日关系和亚洲格局意味着什么",
-        "source": "微博",
+        "id": "zh-tech-1",
+        "title": "春晚机器人厉害在哪里",
+        "angle": "人形机器人上春晚：产业噱头还是真突破",
+        "source": "抖音",
         "date": "2026-02-18",
-        "category": "时事政治",
+        "category": "科技",
         "lang": "zh"
       },
       {
-        "id": "zh-news-2",
-        "title": "美俄乌谈判持续僵持，领土分歧突出",
-        "angle": "战争可能结束了？聊聊美俄乌三角博弈中的真实算盘",
-        "source": "凤凰网",
+        "id": "zh-tech-2",
+        "title": "机器人春晚后卖爆 宇树20万一台",
+        "angle": "一夜爆红的人形机器人背后有多少真实需求",
+        "source": "知乎",
         "date": "2026-02-18",
-        "category": "时事政治",
+        "category": "科技",
         "lang": "zh"
       },
       {
-        "id": "zh-news-3",
-        "title": "第二轮伊美谈判结束，伊朗披露谈判结果",
-        "angle": "伊美谈判背后的让步博弈，谁更需要这笔交易",
-        "source": "凤凰网",
+        "id": "zh-tech-3",
+        "title": "苹果春季发布会落地上海",
+        "angle": "苹果为何选中国首发：本土化策略的信号",
+        "source": "抖音",
         "date": "2026-02-18",
-        "category": "时事政治",
+        "category": "科技",
         "lang": "zh"
       },
       {
-        "id": "zh-news-4",
-        "title": "4个省级党委领导班子调整",
-        "angle": "年后省级大调整，读懂这波人事变动的信号",
+        "id": "zh-tech-4",
+        "title": "Meta将部署数百万颗英伟达芯片",
+        "angle": "AI军备竞赛：算力才是新时代的石油",
         "source": "今日头条",
         "date": "2026-02-18",
-        "category": "时事政治",
+        "category": "科技",
         "lang": "zh"
       },
       {
-        "id": "zh-news-5",
-        "title": "上海浦东机场迎来首批加英免签入境旅客",
-        "angle": "免签潮来了，中国对外开放的新一轮信号",
-        "source": "澎湃新闻",
-        "date": "2026-02-18",
-        "category": "时事政治",
-        "lang": "zh"
-      }
-    ],
-    "财经": [
-      {
-        "id": "zh-fin-1",
-        "title": "AI担忧仍存，美股走V微涨，软件股再遭抛售",
-        "angle": "AI泡沫破了吗？拆解最近美股情绪博弈的底层逻辑",
-        "source": "华尔街见闻",
-        "date": "2026-02-18",
-        "category": "财经",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-fin-2",
-        "title": "巴菲特Q4再抛苹果美银，首次新进纽约时报",
-        "angle": "巴菲特的最后一份持仓，藏着他对未来什么判断",
-        "source": "华尔街见闻",
-        "date": "2026-02-18",
-        "category": "财经",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-fin-3",
-        "title": "分析师：黄金上涨趋势并没有完结",
-        "angle": "黄金还能买吗？读懂当前全球避险资金的流向",
-        "source": "微博",
-        "date": "2026-02-18",
-        "category": "财经",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-fin-4",
-        "title": "一线厂商CEO：这轮存储超级周期前无古人后无来者",
-        "angle": "AI带动的存储超级周期，普通投资者能搭上这班车吗",
-        "source": "华尔街见闻",
-        "date": "2026-02-18",
-        "category": "财经",
-        "lang": "zh"
-      },
-      {
-        "id": "zh-fin-5",
-        "title": "机票价格大跳水，不少人抄底出行",
-        "angle": "春节后机票价格暴跌，这背后是消费降级还是供需错位",
+        "id": "zh-tech-5",
+        "title": "国产铝基电池冬测新突破",
+        "angle": "新能源下一个弯道：铝基电池能颠覆锂电吗",
         "source": "百度热搜",
         "date": "2026-02-18",
-        "category": "财经",
+        "category": "科技",
         "lang": "zh"
       }
     ],
-    "其他": [
+    "生活": [
       {
-        "id": "zh-other-1",
+        "id": "zh-life-1",
         "title": "全国女婿回丈母娘家统一状态",
-        "angle": "大年初二回娘家这件事，折射出中国家庭关系的哪些变迁",
+        "angle": "大年初二女婿的集体困境：一场关系博弈",
         "source": "今日头条",
         "date": "2026-02-18",
-        "category": "其他",
+        "category": "生活",
         "lang": "zh"
       },
       {
-        "id": "zh-other-2",
+        "id": "zh-life-2",
         "title": "七旬母亲坐客厅一夜未眠等女儿回家",
-        "angle": "父母等孩子回家这件小事，说透了多少中国式家庭的情感逻辑",
+        "angle": "等待本身就是最深的爱",
         "source": "百度热搜",
         "date": "2026-02-18",
-        "category": "其他",
+        "category": "生活",
         "lang": "zh"
       },
       {
-        "id": "zh-other-3",
-        "title": "今年所有法定假日全与周末重合",
-        "angle": "假期全撞周末，打工人的愤怒合理吗？从制度设计聊休假权",
+        "id": "zh-life-3",
+        "title": "隔夜菜长期吃会致癌 专家辟谣",
+        "angle": "谣言为何总比辟谣跑得快",
+        "source": "百度热搜",
+        "date": "2026-02-18",
+        "category": "生活",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-life-4",
+        "title": "机票价格大跳水 不少人抄底",
+        "angle": "节后机票为何年年跳水 如何最省钱",
+        "source": "百度热搜",
+        "date": "2026-02-18",
+        "category": "生活",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-life-5",
+        "title": "一个人也要好好过年",
+        "angle": "独居过年的年轻人：孤独还是自由",
+        "source": "抖音",
+        "date": "2026-02-18",
+        "category": "生活",
+        "lang": "zh"
+      }
+    ],
+    "社会": [
+      {
+        "id": "zh-soc-1",
+        "title": "高市早苗内阁集体辞职",
+        "angle": "日本政坛地震：右翼强硬派的政治败局",
         "source": "微博",
         "date": "2026-02-18",
-        "category": "其他",
+        "category": "社会",
         "lang": "zh"
       },
       {
-        "id": "zh-other-4",
-        "title": "过年回家面对亲戚的万能回复",
-        "angle": "为什么每年都要被问同样的问题？中国式亲戚文化的心理学",
-        "source": "百度热搜",
+        "id": "zh-soc-2",
+        "title": "今年所有法定假日全与周末重合",
+        "angle": "调休制度的隐形代价：我们到底损失了什么",
+        "source": "微博",
         "date": "2026-02-18",
-        "category": "其他",
+        "category": "社会",
         "lang": "zh"
       },
       {
-        "id": "zh-other-5",
-        "title": "山东一村600多人集体磕头拜年",
-        "angle": "消失的年俗回来了？传统拜年仪式的复兴意味着什么",
-        "source": "百度热搜",
+        "id": "zh-soc-3",
+        "title": "编造绿皮车超员谣言 多人被罚",
+        "angle": "春运谣言的传播链：点赞转发背后的代价",
+        "source": "抖音",
         "date": "2026-02-18",
-        "category": "其他",
+        "category": "社会",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-soc-4",
+        "title": "2026大年初一总票房12.33亿 同比降30%",
+        "angle": "春节档遇冷：是观众变了还是内容出了问题",
+        "source": "知乎",
+        "date": "2026-02-18",
+        "category": "社会",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-soc-5",
+        "title": "网友在加拿大超市偶遇中国课本",
+        "angle": "中文教育出海：海外华人的文化纽带有多强",
+        "source": "知乎",
+        "date": "2026-02-18",
+        "category": "社会",
+        "lang": "zh"
+      }
+    ],
+    "体育": [
+      {
+        "id": "zh-sport-1",
+        "title": "中国速滑男团历史性夺铜",
+        "angle": "冰上新势力崛起：中国男团突破的背后",
+        "source": "抖音",
+        "date": "2026-02-18",
+        "category": "体育",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-sport-2",
+        "title": "谷爱凌说痛失2块金牌说法太荒谬",
+        "angle": "运动员的心态管理：如何与争议共存",
+        "source": "微博",
+        "date": "2026-02-18",
+        "category": "体育",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-sport-3",
+        "title": "张瑞阳晋级花滑女单自由滑",
+        "angle": "花滑新星崛起：中国花样滑冰的未来在哪",
+        "source": "抖音",
+        "date": "2026-02-18",
+        "category": "体育",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-sport-4",
+        "title": "全妈回应全红婵退役计划",
+        "angle": "冠军的退役边界：谁有权决定运动员的生涯",
+        "source": "微博",
+        "date": "2026-02-18",
+        "category": "体育",
+        "lang": "zh"
+      },
+      {
+        "id": "zh-sport-5",
+        "title": "刘瀚彬夺铜瞬间绷不住哭了",
+        "angle": "奖牌背后的眼泪：极限运动员的情绪释放",
+        "source": "微博",
+        "date": "2026-02-18",
+        "category": "体育",
         "lang": "zh"
       }
     ]
@@ -241,9 +240,9 @@
     "Tech": [
       {
         "id": "en-tech-1",
-        "title": "Anthropic's Sonnet 4.6 Matches Flagship Performance at 1/5 the Cost",
-        "angle": "The AI pricing war just got real — what does this mean for developers and enterprises?",
-        "source": "Wall Street China",
+        "title": "Humanoid Robots Steal the Show at Chinese New Year Gala",
+        "angle": "From factory floors to prime-time TV: are humanoid robots finally ready?",
+        "source": "TechCrunch",
         "date": "2026-02-18",
         "category": "Tech",
         "lang": "en"
@@ -251,117 +250,142 @@
       {
         "id": "en-tech-2",
         "title": "Meta Plans to Deploy Millions of Nvidia Chips",
-        "angle": "The AI infrastructure arms race is accelerating — who wins when everyone is spending billions?",
-        "source": "Hacker News",
+        "angle": "The AI arms race is accelerating — who wins when compute becomes the bottleneck?",
+        "source": "Reuters",
         "date": "2026-02-18",
         "category": "Tech",
         "lang": "en"
       },
       {
         "id": "en-tech-3",
-        "title": "China's Spring Festival Robots Go Viral Overseas",
-        "angle": "Unitree's robots at the Spring Festival Gala — is China winning the humanoid robot race?",
-        "source": "The Verge",
+        "title": "Apple Spring Event Heads to Shanghai",
+        "angle": "Apple choosing China for a first reveal: a localization signal or geopolitical calculation?",
+        "source": "Bloomberg",
         "date": "2026-02-18",
         "category": "Tech",
         "lang": "en"
       },
       {
         "id": "en-tech-4",
-        "title": "Samsung PIM Technology Ready for Mass Production",
-        "angle": "Computing inside memory chips — the next hardware revolution nobody is talking about",
-        "source": "TechCrunch",
+        "title": "Aluminum-Ion Batteries Break Winter Range Records",
+        "angle": "Could aluminum batteries finally unseat lithium? The chemistry that might change EVs forever",
+        "source": "MIT Tech Review",
         "date": "2026-02-18",
         "category": "Tech",
         "lang": "en"
       },
       {
         "id": "en-tech-5",
-        "title": "AI Anxiety Hits Markets: Software Stocks Sell Off Again",
-        "angle": "Is the AI bubble popping? Breaking down what's really driving the sell-off",
+        "title": "AI Agents Are Writing More Code Than Junior Developers",
+        "angle": "The software industry is restructuring in real time — what does that mean for developers?",
         "source": "Hacker News",
         "date": "2026-02-18",
         "category": "Tech",
         "lang": "en"
       }
     ],
-    "Politics": [
+    "Culture": [
       {
-        "id": "en-pol-1",
-        "title": "Japan's Takichi Takaichi Cabinet Resigns En Masse",
-        "angle": "Japan's political shakeup — what it means for US-Japan-China dynamics in 2026",
-        "source": "Reuters",
-        "date": "2026-02-18",
-        "category": "Politics",
-        "lang": "en"
-      },
-      {
-        "id": "en-pol-2",
-        "title": "US-Russia-Ukraine Peace Talks Stall Over Territory",
-        "angle": "Could the war actually end in 2026? Reading the real signals behind the negotiations",
-        "source": "The Verge",
-        "date": "2026-02-18",
-        "category": "Politics",
-        "lang": "en"
-      },
-      {
-        "id": "en-pol-3",
-        "title": "Iran-US Second Round of Talks Concludes",
-        "angle": "The Iran nuclear deal poker game — who needs this deal more, Tehran or Washington?",
-        "source": "Reuters",
-        "date": "2026-02-18",
-        "category": "Politics",
-        "lang": "en"
-      }
-    ],
-    "Entertainment": [
-      {
-        "id": "en-ent-1",
-        "title": "China's Spring Festival Box Office Hits $2.2B",
-        "angle": "Chinese New Year box office records — what Hollywood can learn from this market",
+        "id": "en-cult-1",
+        "title": "China's Spring Festival Box Office Drops 30% Year-Over-Year",
+        "angle": "When blockbuster season disappoints: what audiences actually want in 2026",
         "source": "Variety",
         "date": "2026-02-18",
-        "category": "Entertainment",
+        "category": "Culture",
         "lang": "en"
       },
       {
-        "id": "en-ent-2",
-        "title": "Spring Festival Gala Robots Trending Globally on Social Media",
-        "angle": "When a state TV show goes viral worldwide — the cultural export moment China has been waiting for",
-        "source": "The Verge",
+        "id": "en-cult-2",
+        "title": "Li Ziqi Returns to Stage After Multi-Year Hiatus",
+        "angle": "Comeback economics: how top creators rebuild trust after going dark",
+        "source": "YouTube Trending",
         "date": "2026-02-18",
-        "category": "Entertainment",
+        "category": "Culture",
+        "lang": "en"
+      },
+      {
+        "id": "en-cult-3",
+        "title": "Bilibili Dominates Lunar New Year Comedy Content",
+        "angle": "How a gaming platform became China's comedy powerhouse",
+        "source": "Weibo",
+        "date": "2026-02-18",
+        "category": "Culture",
+        "lang": "en"
+      },
+      {
+        "id": "en-cult-4",
+        "title": "Gen Z Celebrates Chinese New Year Solo — and Loving It",
+        "angle": "The rise of intentional solitude: redefining what holiday connection means",
+        "source": "Douyin",
+        "date": "2026-02-18",
+        "category": "Culture",
+        "lang": "en"
+      },
+      {
+        "id": "en-cult-5",
+        "title": "Chinese Textbooks Spotted in Canadian Supermarkets",
+        "angle": "Cultural exports you didn't expect: how Chinese education is following the diaspora",
+        "source": "Zhihu",
+        "date": "2026-02-18",
+        "category": "Culture",
         "lang": "en"
       }
     ],
-    "Finance": [
+    "Sports": [
       {
-        "id": "en-fin-1",
-        "title": "Buffett's Final Portfolio: Dumps Apple, Adds NY Times",
-        "angle": "What Buffett's last 13F tells us about where value investing is heading",
-        "source": "Wall Street Journal",
+        "id": "en-sport-1",
+        "title": "China's Speed Skating Men's Team Claims Historic Bronze",
+        "angle": "Building a winter sports dynasty: China's long game on ice",
+        "source": "Olympic News",
         "date": "2026-02-18",
-        "category": "Finance",
+        "category": "Sports",
         "lang": "en"
       },
       {
-        "id": "en-fin-2",
-        "title": "Gold Rally: Analysts Say the Trend Isn't Over",
-        "angle": "The case for gold in an AI-disrupted economy — safe haven or outdated thinking?",
+        "id": "en-sport-2",
+        "title": "Gu Ailing Pushes Back on 'Lost Two Golds' Narrative",
+        "angle": "Silver medals and narrative control: how elite athletes manage public perception",
+        "source": "ESPN",
+        "date": "2026-02-18",
+        "category": "Sports",
+        "lang": "en"
+      },
+      {
+        "id": "en-sport-3",
+        "title": "Chinese Figure Skater Zhang Ruiyang Advances to Free Skate",
+        "angle": "The next wave: China's figure skating pipeline is producing world-class talent",
+        "source": "ISU",
+        "date": "2026-02-18",
+        "category": "Sports",
+        "lang": "en"
+      }
+    ],
+    "Business": [
+      {
+        "id": "en-biz-1",
+        "title": "Humanoid Robot Maker Unitree Gets Post-Gala Sales Spike",
+        "angle": "CCTV as the ultimate product launch: how one gala appearance sells millions",
         "source": "Bloomberg",
         "date": "2026-02-18",
-        "category": "Finance",
+        "category": "Business",
         "lang": "en"
-      }
-    ],
-    "Other": [
+      },
       {
-        "id": "en-other-1",
-        "title": "Lunar New Year Goes Global: Year of the Horse Celebrations Worldwide",
-        "angle": "Chinese New Year is now a global holiday — what that says about soft power in 2026",
-        "source": "BBC",
+        "id": "en-biz-2",
+        "title": "Lunar New Year Airline Ticket Prices Crash Post-Holiday",
+        "angle": "The post-holiday discount window: when to book for maximum savings",
+        "source": "Skyscanner",
         "date": "2026-02-18",
-        "category": "Other",
+        "category": "Business",
+        "lang": "en"
+      },
+      {
+        "id": "en-biz-3",
+        "title": "China's UnionPay Processes 49 Billion Transactions on New Year's Eve",
+        "angle": "Behind the numbers: China's cashless society is now truly mature",
+        "source": "Xinhua",
+        "date": "2026-02-18",
+        "category": "Business",
         "lang": "en"
       }
     ]

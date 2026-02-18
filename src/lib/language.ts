@@ -23,8 +23,8 @@ export const TRENDING_SOURCES: Record<Language, string[]> = {
 
 // 语言对应的内容分类 Tab
 export const TOPIC_CATEGORIES: Record<Language, string[]> = {
-  zh: ['科技', '时事政治', '娱乐', '财经', '其他'],
-  en: ['Tech', 'Politics', 'Entertainment', 'Finance', 'Other'],
+  zh: ['娱乐', '科技', '生活', '社会', '体育'],
+  en: ['Tech', 'Culture', 'Sports', 'Business'],
 }
 
 // 语言标签
