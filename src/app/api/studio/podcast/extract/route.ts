@@ -44,18 +44,31 @@ Return strict JSON (no markdown code blocks):
   let geminiBody: object
 
   if (url?.trim()) {
-    // Use Gemini urlContext tool — Gemini fetches the page natively
+    // Step 1: Jina AI Reader — strips nav/ads, returns clean article text
+    const jinaUrl = `https://r.jina.ai/${url.trim()}`
+    const jinaHeaders: Record<string, string> = { 'Accept': 'text/plain', 'X-Return-Format': 'text' }
+    if (process.env.JINA_API_KEY) jinaHeaders['Authorization'] = `Bearer ${process.env.JINA_API_KEY}`
+
+    const jinaRes = await fetch(jinaUrl, { headers: jinaHeaders, signal: AbortSignal.timeout(30000) })
+    if (!jinaRes.ok) return NextResponse.json({ error: `无法读取链接内容 (${jinaRes.status})` }, { status: 422 })
+
+    const rawText = await jinaRes.text()
+    if (!rawText.trim()) return NextResponse.json({ error: '内容为空，请检查链接' }, { status: 422 })
+
+    // Trim to ~60K chars to stay within token limits
+    const trimmed = rawText.slice(0, 60000)
+
+    // Step 2: Gemini extracts concepts from the clean text
     geminiBody = {
-      tools: [{ urlContext: {} }],
       system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{
-        parts: [{ text: `${conceptInstruction}\n\n内容来源 URL：${url.trim()}` }],
-      }],
+      contents: [{ parts: [{ text: `${conceptInstruction}\n\n内容：\n${trimmed}` }] }],
       generationConfig: { responseMimeType: 'application/json' },
     }
+
   } else if (file) {
-    // Upload PDF to Gemini Files API, then analyze
+    // PDF: upload to Gemini Files API, Gemini reads it natively
     const fileUri = await uploadToGeminiFiles(file)
+
     geminiBody = {
       system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [{
@@ -66,6 +79,7 @@ Return strict JSON (no markdown code blocks):
       }],
       generationConfig: { responseMimeType: 'application/json' },
     }
+
   } else {
     return NextResponse.json({ error: 'Must provide url or file' }, { status: 400 })
   }
@@ -93,38 +107,38 @@ Return strict JSON (no markdown code blocks):
   }
 }
 
-// Upload file to Gemini Files API and return the file URI
+// Upload PDF to Gemini Files API, return the hosted file URI
 async function uploadToGeminiFiles(file: File): Promise<string> {
   const buffer = await file.arrayBuffer()
   const bytes = new Uint8Array(buffer)
-
-  // Multipart upload
   const boundary = '---GeminiUpload'
-  const metaPart = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ file: { displayName: file.name } })}\r\n`
-  const dataPart = `--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`
-  const endPart = `\r\n--${boundary}--`
 
-  const metaBytes = new TextEncoder().encode(metaPart)
-  const dataHeaderBytes = new TextEncoder().encode(dataPart)
-  const endBytes = new TextEncoder().encode(endPart)
+  const metaPart = new TextEncoder().encode(
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({ file: { displayName: file.name } })}\r\n`
+  )
+  const dataHeader = new TextEncoder().encode(`--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`)
+  const end = new TextEncoder().encode(`\r\n--${boundary}--`)
 
-  const body = new Uint8Array(metaBytes.length + dataHeaderBytes.length + bytes.length + endBytes.length)
-  body.set(metaBytes, 0)
-  body.set(dataHeaderBytes, metaBytes.length)
-  body.set(bytes, metaBytes.length + dataHeaderBytes.length)
-  body.set(endBytes, metaBytes.length + dataHeaderBytes.length + bytes.length)
+  const body = new Uint8Array(metaPart.length + dataHeader.length + bytes.length + end.length)
+  body.set(metaPart, 0)
+  body.set(dataHeader, metaPart.length)
+  body.set(bytes, metaPart.length + dataHeader.length)
+  body.set(end, metaPart.length + dataHeader.length + bytes.length)
 
   const uploadRes = await fetch(
     `${GEMINI_BASE.replace('v1beta', 'upload/v1beta')}/files?uploadType=multipart&key=${GEMINI_KEY}`,
     {
       method: 'POST',
-      headers: { 'Content-Type': `multipart/related; boundary=${boundary}`, 'X-Goog-Upload-Protocol': 'multipart' },
+      headers: {
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+        'X-Goog-Upload-Protocol': 'multipart',
+      },
       body,
     }
   )
 
   const uploadData = await uploadRes.json()
   const fileUri = uploadData?.file?.uri
-  if (!fileUri) throw new Error('Gemini file upload failed: ' + JSON.stringify(uploadData))
+  if (!fileUri) throw new Error('Gemini Files upload failed: ' + JSON.stringify(uploadData))
   return fileUri
 }
