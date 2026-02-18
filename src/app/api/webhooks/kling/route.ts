@@ -2,10 +2,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getTaskStatus } from '@/lib/kling'
 import { uploadToR2 } from '@/lib/r2'
-import { execSync } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import ffmpeg from 'fluent-ffmpeg'
+import ffmpegPath from 'ffmpeg-static'
+
+// Point fluent-ffmpeg at the bundled static binary
+if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath)
 
 // POST /api/webhooks/kling — Kling 回调
 // 收到通知后主动查询任务状态（方案③，防伪造）
@@ -97,46 +101,41 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
     return
   }
 
-  // Multiple clips: stitch with Python moviepy
+  // Multiple clips: concatenate with ffmpeg-static (no Python required)
   const tmpDir = path.join(os.tmpdir(), `dreamlab_job_${jobId}`)
   try {
     fs.mkdirSync(tmpDir, { recursive: true })
 
-    // Download each clip
+    // Download each clip to disk
     for (const clip of clips) {
       const res = await fetch(clip.lipsync_url)
-      if (!res.ok) throw new Error(`Failed to download clip ${clip.clip_index}`)
+      if (!res.ok) throw new Error(`Failed to download clip ${clip.clip_index}: ${res.status}`)
       const buf = Buffer.from(await res.arrayBuffer())
       fs.writeFileSync(path.join(tmpDir, `clip_${clip.clip_index}.mp4`), buf)
     }
 
-    // Write Python concat script
-    const clipPaths = clips
-      .map(c => path.join(tmpDir, `clip_${c.clip_index}.mp4`))
-      .map(p => `r"${p}"`)
-      .join(', ')
+    // Build ffmpeg concat list file
+    const listPath = path.join(tmpDir, 'concat.txt')
+    const listContent = clips
+      .map(c => `file '${path.join(tmpDir, `clip_${c.clip_index}.mp4`)}'`)
+      .join('\n')
+    fs.writeFileSync(listPath, listContent)
 
     const finalPath = path.join(tmpDir, 'final.mp4')
-    const pyScript = `
-import sys
-from moviepy.editor import VideoFileClip, concatenate_videoclips
 
-clip_paths = [${clipPaths}]
-clips = [VideoFileClip(p) for p in clip_paths]
-final = concatenate_videoclips(clips, method='compose')
-final.write_videofile(r"${finalPath}", codec='libx264', audio_codec='aac', logger=None)
-for c in clips:
-    c.close()
-final.close()
-print("done")
-`
-    const pyPath = path.join(tmpDir, 'concat.py')
-    fs.writeFileSync(pyPath, pyScript)
+    // Run ffmpeg concat (stream copy — no re-encode, very fast)
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg()
+        .input(listPath)
+        .inputOptions(['-f', 'concat', '-safe', '0'])
+        .outputOptions(['-c', 'copy'])
+        .output(finalPath)
+        .on('end', () => resolve())
+        .on('error', (err: Error) => reject(err))
+        .run()
+    })
 
-    // Run Python (5 min timeout)
-    execSync(`python3 "${pyPath}"`, { timeout: 300_000 })
-
-    // Upload result to R2
+    // Upload stitched video to R2
     const finalBuf = fs.readFileSync(finalPath)
     const r2Key = `jobs/${jobId}/final.mp4`
     const finalUrl = await uploadToR2(r2Key, finalBuf, 'video/mp4')
@@ -149,14 +148,13 @@ print("done")
 
   } catch (err) {
     console.error(`[stitchVideo] job ${jobId} failed:`, err)
-    // Fallback: mark done with first clip so user can still download individually
+    // Fallback: mark done with first clip so users can still download individually
     await service.from('jobs').update({
       status: 'done',
       final_video_url: clips[0].lipsync_url,
       updated_at: new Date().toISOString(),
     }).eq('id', jobId)
   } finally {
-    // Cleanup tmp files
     try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
   }
 }
