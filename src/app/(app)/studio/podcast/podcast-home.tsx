@@ -104,27 +104,24 @@ export default function PodcastClient({ lang, credits, influencers, recentJobs }
       <p className="text-xs text-zinc-600 uppercase tracking-widest mb-3">
         {lang === 'zh' ? '选择创作方式' : 'Choose creation mode'}
       </p>
-      <div className="space-y-3 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         {MODES.map(m => (
           <button
             key={m.id}
             onClick={() => setMode(m.id)}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900
+            className="flex flex-col items-start p-5 rounded-xl border border-zinc-800 bg-zinc-900
                        hover:border-zinc-600 hover:bg-zinc-800 transition-all group text-left"
           >
-            <div className="shrink-0">{m.icon}</div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-white text-sm">{m.title}</span>
-                {m.badge && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">
-                    {m.badge}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-zinc-500 mt-0.5 truncate">{m.desc}</p>
+            <div className="mb-3">{m.icon}</div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-medium text-white text-sm">{m.title}</span>
+              {m.badge && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">
+                  {m.badge}
+                </span>
+              )}
             </div>
-            <ArrowRight size={14} className="text-zinc-600 group-hover:text-zinc-400 shrink-0 transition-colors" />
+            <p className="text-xs text-zinc-500 leading-relaxed">{m.desc}</p>
           </button>
         ))}
       </div>

@@ -7,12 +7,20 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Pencil, Trash2, Play, Volume2, Mic } from 'lucide-react'
 import type { Influencer } from '@/types'
+import { useLanguage } from '@/context/language-context'
 
-const TYPE_LABEL: Record<string, string> = {
+const TYPE_LABEL_ZH: Record<string, string> = {
   human: '真人',
   animal: '动物',
   virtual: '虚拟角色',
   brand: '品牌IP',
+}
+
+const TYPE_LABEL_EN: Record<string, string> = {
+  human: 'Human',
+  animal: 'Animal',
+  virtual: 'Virtual',
+  brand: 'Brand IP',
 }
 
 const CHAT_STYLE_LABEL: Record<string, string> = {
@@ -30,7 +38,9 @@ interface Props {
 export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) {
   const [playing, setPlaying] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
+  const lang = useLanguage()
   const isOwn = !influencer.is_builtin
+  const TYPE_LABEL = lang === 'en' ? TYPE_LABEL_EN : TYPE_LABEL_ZH
 
   function handlePlay(e: React.MouseEvent) {
     e.stopPropagation()
@@ -61,10 +71,10 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             {TYPE_LABEL[influencer.type]}
           </Badge>
           {influencer.is_builtin && (
-            <Badge variant="secondary" className="text-xs bg-zinc-800/80 text-zinc-500">官方</Badge>
+            <Badge variant="secondary" className="text-xs bg-zinc-800/80 text-zinc-500">{lang === 'en' ? 'Official' : '官方'}</Badge>
           )}
           {isOwn && (
-            <Badge variant="secondary" className="text-xs bg-violet-900/60 text-violet-300">我的</Badge>
+            <Badge variant="secondary" className="text-xs bg-violet-900/60 text-violet-300">{lang === 'en' ? 'Mine' : '我的'}</Badge>
           )}
         </div>
 
@@ -132,7 +142,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
               </div>
               <div>
                 <div className="text-white font-semibold">{influencer.name}</div>
-                <div className="text-xs text-zinc-500 font-normal mt-0.5">{TYPE_LABEL[influencer.type]} · {influencer.is_builtin ? '官方内置' : '我的网红'}</div>
+                <div className="text-xs text-zinc-500 font-normal mt-0.5">{TYPE_LABEL[influencer.type]} · {influencer.is_builtin ? (lang === 'en' ? 'Official' : '官方内置') : (lang === 'en' ? 'My Influencer' : '我的网红')}</div>
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -146,7 +156,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             {/* 性格标签 */}
             {influencer.personality?.length > 0 && (
               <div>
-                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">性格标签</p>
+                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">{lang === 'en' ? 'Personality' : '性格标签'}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {influencer.personality.map(tag => (
                     <span key={tag} className="text-xs px-2 py-1 rounded-full bg-zinc-800 text-zinc-300">{tag}</span>
@@ -158,7 +168,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             {/* 主领域 */}
             {influencer.domains?.length > 0 && (
               <div>
-                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">主领域</p>
+                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">{lang === 'en' ? 'Domains' : '主领域'}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {influencer.domains.map(d => (
                     <span key={d} className="text-xs px-2 py-1 rounded-full bg-violet-900/40 text-violet-300">{d}</span>
@@ -170,7 +180,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             {/* 说话风格 */}
             {influencer.speaking_style && (
               <div>
-                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">说话风格</p>
+                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">{lang === 'en' ? 'Speaking Style' : '说话风格'}</p>
                 <p className="text-sm text-zinc-300">{influencer.speaking_style}</p>
               </div>
             )}
@@ -178,7 +188,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             {/* 口头禅 */}
             {(influencer.catchphrases?.length ?? 0) > 0 && (
               <div>
-                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">口头禅</p>
+                <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2">{lang === 'en' ? 'Catchphrases' : '口头禅'}</p>
                 <div className="flex flex-wrap gap-2">
                   {influencer.catchphrases!.map(cp => (
                     <span key={cp} className="text-xs px-2.5 py-1 rounded-full border border-zinc-700 text-zinc-400">"{cp}"</span>
@@ -191,13 +201,13 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             <div className="grid grid-cols-2 gap-3">
               {influencer.chat_style && (
                 <div>
-                  <p className="text-xs text-zinc-600 uppercase tracking-wider mb-1">对谈风格</p>
+                  <p className="text-xs text-zinc-600 uppercase tracking-wider mb-1">{lang === 'en' ? 'Chat Style' : '对谈风格'}</p>
                   <p className="text-sm text-zinc-300">{CHAT_STYLE_LABEL[influencer.chat_style] ?? influencer.chat_style}</p>
                 </div>
               )}
               {influencer.forbidden && (
                 <div>
-                  <p className="text-xs text-zinc-600 uppercase tracking-wider mb-1">禁区</p>
+                  <p className="text-xs text-zinc-600 uppercase tracking-wider mb-1">{lang === 'en' ? 'Off-limits' : '禁区'}</p>
                   <p className="text-xs text-zinc-500 leading-relaxed">{influencer.forbidden}</p>
                 </div>
               )}
@@ -207,7 +217,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             {influencer.voice_prompt && (
               <div>
                 <p className="text-xs text-zinc-600 uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <Mic size={10} /> 声线描述
+                  <Mic size={10} /> {lang === 'en' ? 'Voice Profile' : '声线描述'}
                 </p>
                 <p className="text-xs text-zinc-500 font-mono leading-relaxed">{influencer.voice_prompt}</p>
               </div>
@@ -218,7 +228,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
               <div className="flex gap-2 pt-2 border-t border-zinc-800">
                 <Button variant="outline" size="sm" onClick={() => { setShowDetail(false); onEdit?.(influencer) }}
                   className="flex-1 border-zinc-700 text-zinc-300 hover:text-white">
-                  <Pencil size={13} className="mr-1.5" /> 编辑
+                  <Pencil size={13} className="mr-1.5" /> {lang === 'en' ? 'Edit' : '编辑'}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => { setShowDetail(false); onDelete?.(influencer.id) }}
                   className="border-zinc-700 text-red-400 hover:text-red-300 hover:border-red-800">

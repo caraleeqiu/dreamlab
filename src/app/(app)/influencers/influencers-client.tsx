@@ -8,6 +8,7 @@ import InfluencerCard from '@/components/influencers/influencer-card'
 import CreateWizard from '@/components/influencers/create-wizard'
 import type { Influencer, Language } from '@/types'
 import { t, UI } from '@/lib/i18n'
+import { localizeInfluencer } from '@/lib/influencers-i18n'
 
 interface Props { lang: Language }
 
@@ -134,7 +135,7 @@ export default function InfluencersClient({ lang }: Props) {
                 {mine.map(inf => (
                   <InfluencerCard
                     key={inf.id}
-                    influencer={inf}
+                    influencer={localizeInfluencer(inf, lang)}
                     onEdit={setEditTarget}
                     onDelete={handleDelete}
                   />
@@ -166,7 +167,7 @@ export default function InfluencersClient({ lang }: Props) {
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {group.items.map(inf => (
-                  <InfluencerCard key={inf.id} influencer={inf} />
+                  <InfluencerCard key={inf.id} influencer={localizeInfluencer(inf, lang)} />
                 ))}
               </div>
             </section>
