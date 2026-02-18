@@ -19,14 +19,14 @@ function LineCard({ line, lang }: { line: typeof ORIGINAL_LINES[0]; lang: Langua
   return (
     <Link
       href={line.href}
-      className="group p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/80 transition-all"
+      className="group p-4 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/80 transition-all flex flex-col"
     >
-      <div className="text-3xl mb-3">{line.emoji}</div>
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h2 className="font-semibold text-white">{t(lang, strings.title)}</h2>
+      <div className="text-2xl mb-2">{line.emoji}</div>
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <h2 className="font-semibold text-white text-sm">{t(lang, strings.title)}</h2>
         <span className={`text-xs font-medium shrink-0 ${line.creditClass}`}>{t(lang, strings.credit)}</span>
       </div>
-      <p className="text-sm text-zinc-500 leading-relaxed">{t(lang, strings.desc)}</p>
+      <p className="text-xs text-zinc-500 truncate">{t(lang, strings.desc)}</p>
     </Link>
   )
 }
@@ -54,17 +54,17 @@ export default async function StudioPage() {
         <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">
           {lang === 'zh' ? '看灵感' : 'Get Inspired · Free'}
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
             href="/studio/trending"
-            className="group p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-green-800/60 hover:bg-zinc-800/80 transition-all"
+            className="group p-4 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-green-800/60 hover:bg-zinc-800/80 transition-all flex flex-col"
           >
-            <div className="text-3xl mb-3">🔥</div>
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <h2 className="font-semibold text-white">{t(lang, UI.studio.lines.trending.title)}</h2>
+            <div className="text-2xl mb-2">🔥</div>
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <h2 className="font-semibold text-white text-sm">{t(lang, UI.studio.lines.trending.title)}</h2>
               <span className="text-xs font-medium text-green-400 shrink-0">{t(lang, UI.studio.lines.trending.credit)}</span>
             </div>
-            <p className="text-sm text-zinc-500 leading-relaxed">{t(lang, UI.studio.lines.trending.desc)}</p>
+            <p className="text-xs text-zinc-500 truncate">{t(lang, UI.studio.lines.trending.desc)}</p>
           </Link>
         </div>
       </section>
@@ -74,7 +74,7 @@ export default async function StudioPage() {
         <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">
           {lang === 'zh' ? '爆款二创' : 'Viral Remix'}
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {REMIX_LINES.map(line => <LineCard key={line.key} line={line} lang={lang} />)}
         </div>
       </section>
