@@ -36,8 +36,8 @@ export default function TrendingClient({ lang, categories }: { lang: Language; c
       <div className="flex items-center gap-3 mb-6">
         <Flame size={20} className="text-orange-400" />
         <div>
-          <h1 className="text-2xl font-bold text-white">看灵感</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">实时热点 · 免费浏览 · 一键进入播客创作</p>
+          <h1 className="text-2xl font-bold text-white">{lang === 'zh' ? '看灵感' : 'Get Inspired'}</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{lang === 'zh' ? '实时热点 · 免费浏览 · 一键进入播客创作' : 'Live trending topics · Free · One-click into podcast creation'}</p>
         </div>
       </div>
 
@@ -78,7 +78,7 @@ export default function TrendingClient({ lang, categories }: { lang: Language; c
                 </div>
                 <button onClick={() => goToPodcast(topic)}
                   className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-violet-600 text-zinc-400 hover:text-white text-xs font-medium transition-all">
-                  做播客
+                  {lang === 'zh' ? '做播客' : 'Make Podcast'}
                   <ArrowRight size={12} />
                 </button>
               </div>
