@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-18 (Round 12)
+> **最后更新**: 2026-02-18 (Round 13)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -32,6 +32,13 @@
   - 新增 `/api/studio/anime/extract-product` — Gemini 2.0 Flash 解析产品信息（支持URL/纯文本，Jina读链接）
   - TS 零错误（修复 studio/page.tsx LineCard 类型、删除废弃 DURATIONS 数组）
 
+**Round 13 更新：**
+- credits 页全双语（useLanguage hook，所有硬编码中文替换为 UI.credits.* i18n）
+- stitchVideo 迁移到 ffmpeg-static + fluent-ffmpeg（纯 npm，无需 Python + moviepy）
+  - ffmpeg concat demuxer 流复制拼接，不重新编码，速度快
+  - Railway 部署无需额外安装任何系统依赖
+- OpenStoryline（小红书）暂未开源，2026 年 2 月仍在内测，暂不集成
+
 ---
 
 ## ⚡ 快速启动
@@ -62,9 +69,9 @@ source dev.sh  # 重启 dev server
 | 🟢 | 14 个网红图片上传 R2 + DB 更新 | ✅ 完成 |
 | 🟢 | 完整导航架构（工作台/任务/历史作品/分类） | ✅ 完成 |
 | 🟢 | 动漫营销视频 wizard v2（产品识别+6步流程） | ✅ 完成 |
+| 🟢 | stitchVideo 用 ffmpeg-static（npm 内置，Railway 无需安装 ffmpeg/Python） | ✅ 完成 |
+| 🟢 | credits 页完整双语 | ✅ 完成 |
 | 🔴 | ngrok 端到端测试（Kling webhook 回调验证） | 待测试 |
-| 🔴 | 视频拼接服务（stitchVideo 是 stub，需服务器有 ffmpeg） | 未开始 |
-| 🟡 | credits 页完整双语 | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
 | 🟡 | Railway 部署 | 待做 |
 | ⬜ | JINA_API_KEY 申请（免费，不填也能跑） | 可选 |
