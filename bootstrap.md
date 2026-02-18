@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-18 (Round 7)
+> **最后更新**: 2026-02-18 (Round 8)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -8,7 +8,7 @@
 
 ## 🟢 当前状态
 
-全流程可测试 — TS 零错误，双语架构完成，Google OAuth 已开通，Podcast import 模式（URL/PDF 拆书）已上线
+全流程可测试 — TS 零错误，双语架构完成，Google OAuth 已开通，Podcast import 模式上线，14 个网红图片全部上传 R2 并在网红库正常展示
 
 ---
 
@@ -40,6 +40,7 @@ source dev.sh  # 重启 dev server
 | 🟢 | 所有 wizard 双语（edu/remix/anime/story/script/link） | ✅ 完成 |
 | 🟢 | Podcast import 模式（URL/PDF → 观点提炼） | ✅ 完成 |
 | 🟢 | 根页面无限重定向 bug 修复 | ✅ 完成 |
+| 🟢 | 14 个网红图片上传 R2 + DB 更新（含小花/Zane） | ✅ 完成 |
 | 🔴 | ngrok 端到端测试（Kling webhook 回调验证） | 待测试 |
 | 🔴 | 视频拼接服务（stitchVideo 是 stub，需服务器有 ffmpeg） | 未开始 |
 | 🟡 | credits 页完整双语 | 待做 |
@@ -73,6 +74,7 @@ wizard → POST /api/studio/[type] → 扣积分 → 创建 job → 并发提交
 | `dreamlab/.env.local` | Supabase URL/key + ngrok URL |
 | `dreamlab/supabase/schema.sql` | 数据库 schema |
 | `dreamlab/scripts/seed-influencers.ts` | 12个内置网红种子数据 |
+| `dreamlab/scripts/upload-influencer-images.py` | boto3 上传图片到 R2 + 更新 DB |
 | `dreamlab-assets/kling-api.md` | 可灵 API 参考 |
 | `trend-fetcher/fetch_trends.py` | 英文热点抓取 |
 

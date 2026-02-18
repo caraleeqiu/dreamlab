@@ -48,6 +48,20 @@ export default function InfluencersClient({ lang }: Props) {
   const builtin = filtered.filter(i => i.is_builtin)
   const mine = filtered.filter(i => !i.is_builtin)
 
+  const TYPE_ORDER: Array<{ type: string; label: string }> = [
+    { type: 'human',   label: '真人' },
+    { type: 'animal',  label: '动物' },
+    { type: 'virtual', label: '虚拟角色' },
+    { type: 'brand',   label: '品牌IP' },
+  ]
+
+  const builtinByType = TYPE_ORDER
+    .map(({ type, label }) => ({
+      type, label,
+      items: builtin.filter(i => i.type === type),
+    }))
+    .filter(g => g.items.length > 0)
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* 头部 */}
@@ -116,17 +130,19 @@ export default function InfluencersClient({ lang }: Props) {
             </section>
           )}
 
-          {/* 内置网红 */}
-          {builtin.length > 0 && (
-            <section>
-              <h2 className="text-sm font-medium text-zinc-400 mb-3">{t(lang, UI.influencers.builtinSection)}</h2>
+          {/* 内置网红（按分类分组） */}
+          {builtinByType.map(group => (
+            <section key={group.type} className="mb-8">
+              <h2 className="text-sm font-medium text-zinc-400 mb-3">
+                {t(lang, UI.influencers.builtinSection)} · {group.label}
+              </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {builtin.map(inf => (
+                {group.items.map(inf => (
                   <InfluencerCard key={inf.id} influencer={inf} />
                 ))}
               </div>
             </section>
-          )}
+          ))}
         </>
       )}
 

@@ -14,7 +14,8 @@ const BUCKET = process.env.R2_BUCKET!
 
 export async function uploadToR2(key: string, body: Buffer | Uint8Array, contentType: string) {
   await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType }))
-  return `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com/${BUCKET}/${key}`
+  const publicBase = process.env.R2_PUBLIC_URL ?? `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com/${BUCKET}`
+  return `${publicBase}/${key}`
 }
 
 export async function getPresignedUrl(key: string, expiresIn = 3600) {
