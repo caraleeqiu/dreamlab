@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { submitSimpleVideo } from '@/lib/kling'
+import { submitMultiShotVideo } from '@/lib/kling'
 import type { ScriptClip, Influencer } from '@/types'
 
 const CREDIT_COST = 30
@@ -44,25 +44,44 @@ export async function POST(req: NextRequest) {
   }).select().single()
   if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 })
 
-  const clipInserts = (script as ScriptClip[]).map(clip => ({ job_id: job.id, clip_index: clip.index, status: 'pending', prompt: '' }))
-  const { data: clips } = await service.from('clips').insert(clipInserts).select()
-
+  const clips = script as ScriptClip[]
   const infMap = Object.fromEntries((influencers as Influencer[]).map(inf => [inf.slug, inf]))
   const primaryInf = influencers[0] as Influencer
   const styleVisual = NARRATIVE_VISUAL[narrativeStyle] || 'cinematic style'
-  const CALLBACK = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
+  const totalDuration = clips.reduce((sum, c) => sum + (c.duration || 5), 0)
 
-  await Promise.allSettled((script as ScriptClip[]).map(async (clip) => {
-    const actor = infMap[clip.speaker] || primaryInf
-    const dialoguePart = clip.dialogue ? `. [VOICE: ${actor.voice_prompt}]. "${clip.dialogue}"` : ''
-    const prompt = `${clip.shot_description}. ${styleVisual}. ${genre} short film. ${actor.name}: ${actor.tagline}${dialoguePart}. Vertical, cinematic quality.`
-    const resp = await submitSimpleVideo({ prompt, imageUrl: actor.frontal_image_url || '', durationS: clip.duration, aspectRatio: aspectRatio || '9:16', callbackUrl: CALLBACK })
-    const taskId = resp?.data?.task_id
-    if (taskId && clips) {
-      await service.from('clips').update({ status: 'submitted', kling_task_id: taskId, prompt })
-        .eq('job_id', job.id).eq('clip_index', clip.index)
-    }
-  }))
+  // Build combined prompt — intelligence mode handles camera cuts and movement
+  const shotDescriptions = clips.map((c, i) => {
+    const actor = infMap[c.speaker] || primaryInf
+    const dialogue = c.dialogue ? ` ${actor.name} says: "${c.dialogue}"` : ''
+    return `Scene ${i + 1}: ${c.shot_description}.${dialogue}`
+  }).join('. ')
+  const combinedPrompt = [
+    `${primaryInf.name} (${primaryInf.tagline}), ${styleVisual}, ${genre} short film.`,
+    `Voice: ${primaryInf.voice_prompt}.`,
+    shotDescriptions,
+    `Vertical format, cinematic quality.`,
+  ].join(' ')
+
+  const { data: clipRows } = await service.from('clips').insert([{
+    job_id: job.id, clip_index: 0, status: 'pending', prompt: combinedPrompt,
+  }]).select()
+
+  const CALLBACK = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
+  const resp = await submitMultiShotVideo({
+    imageUrl: primaryInf.frontal_image_url || '',
+    prompt: combinedPrompt,
+    shotType: 'intelligence',
+    totalDuration,
+    aspectRatio: aspectRatio || '9:16',
+    callbackUrl: CALLBACK,
+  })
+
+  const taskId = resp?.data?.task_id
+  if (taskId && clipRows) {
+    await service.from('clips').update({ status: 'submitted', kling_task_id: taskId })
+      .eq('job_id', job.id).eq('clip_index', 0)
+  }
 
   return NextResponse.json({ jobId: job.id })
 }

@@ -27,33 +27,29 @@ async function klingFetch(path: string, options: RequestInit = {}) {
   return res.json()
 }
 
+// Build prompt for a single podcast clip (used in per-clip fallback)
 export function buildClipPrompt(
   clip: ScriptClip,
   influencer: Influencer,
   firstFrameUrl: string,
   frontalImageUrl: string,
 ) {
-  const shotDesc = clip.shot_description
-  const voicePrompt = influencer.voice_prompt
-  const dialogue = clip.dialogue
-
   const prompt = [
-    `@Element1 ${shotDesc}`,
-    `Mouth opens and closes naturally with speech rhythm.`,
-    `[VOICE: ${voicePrompt}]`,
-    `[SAYS: ${dialogue}]`,
-  ].join(' ')
+    `<<<element_1>>> ${clip.shot_description}`,
+    `Speak naturally: "${clip.dialogue}"`,
+    `Voice style: ${influencer.voice_prompt}`,
+  ].join('. ')
 
   return {
     model_name: 'kling-v3',
     prompt,
     image: firstFrameUrl,
-    duration: clip.duration,
+    duration: String(clip.duration),
     aspect_ratio: '9:16',
     mode: 'pro' as const,
     cfg_scale: 0.5,
-    elements: [{ frontal_image_url: frontalImageUrl }],
-    generate_audio: true,
+    element_list: [{ frontal_image_url: frontalImageUrl }],
+    sound: 'on',
   }
 }
 
@@ -68,8 +64,58 @@ export async function getTaskStatus(taskId: string) {
   return klingFetch(`/v1/videos/image2video/${taskId}`)
 }
 
-// Simple image-to-video for non-podcast job types (remix / edu / anime / story)
-// Uses a flat prompt string without @Element1 / elements[] syntax
+// Multi-shot image-to-video — single API call for the whole script
+//
+// shotType: "intelligence" — single prompt, Kling auto-cuts & handles camera movement
+//           "customize"    — per-shot prompts via shots[], full storyboard control
+export async function submitMultiShotVideo(params: {
+  imageUrl: string
+  totalDuration: number
+  // intelligence mode: one combined prompt
+  prompt?: string
+  // customize mode: per-shot prompts (max 6 shots)
+  shots?: Array<{ index: number; prompt: string; duration: number }>
+  shotType?: 'intelligence' | 'customize'
+  aspectRatio?: string
+  renderMode?: 'pro' | 'std'
+  elementList?: Array<{ element_id?: number; frontal_image_url?: string }>
+  voiceList?: Array<{ voice_id: number }>
+  callbackUrl?: string
+}) {
+  const shotType = params.shotType ?? (params.shots?.length ? 'customize' : 'intelligence')
+
+  const body: Record<string, unknown> = {
+    model_name: 'kling-v3',
+    mode: params.renderMode ?? 'pro',
+    image: params.imageUrl,
+    multi_shot: 'true',
+    shot_type: shotType,
+    duration: String(Math.min(params.totalDuration, 15)),
+    aspect_ratio: params.aspectRatio ?? '9:16',
+    sound: 'on',
+  }
+
+  if (shotType === 'customize' && params.shots?.length) {
+    body.multi_prompt = params.shots.map(s => ({
+      index: s.index,
+      prompt: s.prompt,
+      duration: String(s.duration),
+    }))
+  } else {
+    body.prompt = params.prompt ?? ''
+  }
+
+  if (params.elementList?.length) body.element_list = params.elementList
+  if (params.voiceList?.length) body.voice_list = params.voiceList
+  if (params.callbackUrl) body.callback_url = params.callbackUrl
+
+  return klingFetch('/v1/videos/image2video', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+// Simple single-shot image-to-video (remix / edu / single-clip fallback)
 export async function submitSimpleVideo(params: {
   prompt: string
   imageUrl: string
@@ -84,9 +130,9 @@ export async function submitSimpleVideo(params: {
       mode: 'pro' as const,
       prompt: params.prompt,
       image: params.imageUrl,
-      duration: Math.min(params.durationS ?? 5, 10),
+      duration: String(Math.min(params.durationS ?? 5, 10)),
       aspect_ratio: params.aspectRatio ?? '9:16',
-      generate_audio: true,
+      sound: 'on',
       ...(params.callbackUrl && { callback_url: params.callbackUrl }),
     }),
   })

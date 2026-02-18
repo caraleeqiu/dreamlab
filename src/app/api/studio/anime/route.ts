@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { submitSimpleVideo } from '@/lib/kling'
+import { submitMultiShotVideo } from '@/lib/kling'
 import type { ScriptClip } from '@/types'
 
 const CREDIT_COST = 50
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { brandName, productName, productDesc, targetAudience, animeStyle, influencerId, platform, aspectRatio, script, lang } = await req.json()
+  const { brandName, productName, animeStyle, influencerId, platform, aspectRatio, script, lang } = await req.json()
   if (!brandName || !productName || !influencerId || !platform || !script) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -37,6 +37,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'insufficient_credits' }, { status: 402 })
   }
 
+  const clips = script as ScriptClip[]
+  const styleVisual = ANIME_STYLE_VISUAL[animeStyle] || 'anime style'
+  const totalDuration = clips.reduce((sum, c) => sum + (c.duration || 5), 0)
+
+  // Build one combined prompt for intelligence mode — Kling handles shot cuts automatically
+  const shotDescriptions = clips.map((c, i) =>
+    `Scene ${i + 1}: ${c.shot_description}${c.dialogue ? `. ${influencer.name} says: "${c.dialogue}"` : ''}`
+  ).join('. ')
+  const combinedPrompt = [
+    `${influencer.name} (${influencer.tagline}), ${styleVisual}.`,
+    `Brand: ${brandName}, product: ${productName}.`,
+    `Voice style: ${influencer.voice_prompt}.`,
+    shotDescriptions,
+    `Vertical format, premium anime animation quality.`,
+  ].join(' ')
+
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'anime', status: 'generating', language: lang || 'zh',
     title: `动漫营销: ${brandName} × ${influencer.name}`, platform, aspect_ratio: aspectRatio || '9:16',
@@ -44,22 +60,26 @@ export async function POST(req: NextRequest) {
   }).select().single()
   if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 })
 
-  const clipInserts = (script as ScriptClip[]).map(clip => ({ job_id: job.id, clip_index: clip.index, status: 'pending', prompt: '' }))
-  const { data: clips } = await service.from('clips').insert(clipInserts).select()
+  // Single clip record for the whole multi-shot video
+  const { data: clipRows } = await service.from('clips').insert([{
+    job_id: job.id, clip_index: 0, status: 'pending', prompt: combinedPrompt,
+  }]).select()
 
-  const styleVisual = ANIME_STYLE_VISUAL[animeStyle] || 'anime style'
   const CALLBACK = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
+  const resp = await submitMultiShotVideo({
+    imageUrl: influencer.frontal_image_url || '',
+    prompt: combinedPrompt,
+    shotType: 'intelligence',
+    totalDuration,
+    aspectRatio: aspectRatio || '9:16',
+    callbackUrl: CALLBACK,
+  })
 
-  await Promise.allSettled((script as ScriptClip[]).map(async (clip) => {
-    const dialogue = clip.dialogue ? `. [VOICE: ${influencer.voice_prompt}]. "${clip.dialogue}"` : ''
-    const prompt = `${clip.shot_description}. ${styleVisual}. Brand: ${brandName}, product: ${productName}. ${influencer.name}: ${influencer.tagline}${dialogue}. Premium animation, vertical format.`
-    const resp = await submitSimpleVideo({ prompt, imageUrl: influencer.frontal_image_url || '', durationS: clip.duration, aspectRatio: aspectRatio || '9:16', callbackUrl: CALLBACK })
-    const taskId = resp?.data?.task_id
-    if (taskId && clips) {
-      await service.from('clips').update({ status: 'submitted', kling_task_id: taskId, prompt })
-        .eq('job_id', job.id).eq('clip_index', clip.index)
-    }
-  }))
+  const taskId = resp?.data?.task_id
+  if (taskId && clipRows) {
+    await service.from('clips').update({ status: 'submitted', kling_task_id: taskId })
+      .eq('job_id', job.id).eq('clip_index', 0)
+  }
 
   return NextResponse.json({ jobId: job.id })
 }
