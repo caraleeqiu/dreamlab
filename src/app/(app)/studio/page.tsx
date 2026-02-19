@@ -4,7 +4,7 @@ import { t, UI } from '@/lib/i18n'
 import type { Language } from '@/types'
 
 const REMIX_LINES = [
-  { href: '/studio/remix', key: 'remix' as const, emoji: '✂️', creditClass: 'text-violet-400' },
+  { href: '/studio/remix', key: 'remix' as const, emoji: '✂️', creditClass: 'text-violet-400', comingSoon: true },
 ]
 
 const ORIGINAL_LINES = [
@@ -15,9 +15,23 @@ const ORIGINAL_LINES = [
 ]
 
 type LineKey = keyof typeof UI.studio.lines
-type LineItem = { href: string; key: LineKey; emoji: string; creditClass: string }
+type LineItem = { href: string; key: LineKey; emoji: string; creditClass: string; comingSoon?: boolean }
 function LineCard({ line, lang }: { line: LineItem; lang: Language }) {
   const strings = UI.studio.lines[line.key]
+  if (line.comingSoon) {
+    return (
+      <div className="relative p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/50 flex flex-col cursor-not-allowed opacity-50">
+        <div className="text-2xl mb-2 grayscale">{line.emoji}</div>
+        <div className="flex items-center justify-between gap-1 mb-1">
+          <h2 className="font-semibold text-zinc-400 text-sm">{t(lang, strings.title)}</h2>
+          <span className="text-xs font-medium shrink-0 text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded">
+            {lang === 'en' ? 'Coming Soon' : '待上线'}
+          </span>
+        </div>
+        <p className="text-xs text-zinc-600 line-clamp-2 leading-relaxed">{t(lang, strings.desc)}</p>
+      </div>
+    )
+  }
   return (
     <Link
       href={line.href}
