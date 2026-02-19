@@ -1,8 +1,83 @@
 # 🎭 Dreamlab - AI Influencer Factory 项目详细文档
 
 > **项目代号**: Dreamlab（AI红网工厂）
-> **最后更新**: 2026-02-19 (Round 13 完结)
-> **状态**: 🟢 **全流程可测试** — 4种网红科普模式上线，多 Provider 路由完整架构，webhook 自动合成 PiP + 字幕
+> **最后更新**: 2026-02-19 (Round 26 完结)
+> **状态**: 🟢 **全流程可测试** — Remix v2（三场景 Tabs UI）+ BGM 混音 + 单片段重生成 + Kling 主体注册 UI + Claude Code Skills 集成
+
+## ✅ Round 26（2026-02-19）— Remix Tabs UI · README 文档 · Skills 集成说明
+
+### 变更内容
+
+| 文件 | 变更 |
+|------|------|
+| `src/app/(app)/studio/remix/remix-wizard.tsx` | **Tabs 改版**：模式选择卡片 → 顶部三 Tab 栏（Visual Remix / Segment Splice / Script Imitation），各 Tab 独立颜色主题和费用徽标；credit cost 从硬编码 5 改为读取 `CREDIT_COSTS.remix`（20） |
+| `src/components/influencers/influencer-card.tsx` | 修复 Kling 注册兜底错误文案双语缺失 |
+| `README.md` | 修复费用表；新增 Round 24/25 架构说明、bgm.ts 和 remix 子路由结构；新增 Claude Code Skills Integration 章节 |
+
+### Remix Wizard Tabs 设计
+
+```
+┌────────────────────────────────────────────┐
+│  ← Remix 二创                              │
+│  替换视频主体为你的网红形象                  │
+├─────────────┬─────────────┬────────────────┤
+│  换主体      │  片段替换   │   脚本仿写      │  ← Tab 栏
+│  violet     │   pink      │    cyan         │
+├─────────────┴─────────────┴────────────────┤
+│  [费用: 20 积分]  [余额: xxx]               │
+│  步骤进度条 + 当前步骤内容                   │
+└────────────────────────────────────────────┘
+```
+
+---
+
+## ✅ Round 25（2026-02-19）— BGM 混音 · 单片段重生成 · Kling 注册 UI · 积分修正
+
+### 变更内容
+
+| 文件 | 变更 |
+|------|------|
+| `src/lib/bgm.ts` | **新建**：6 种 BGM 风格映射（轻松欢快/科技感/励志/悬疑/温馨/紧张 + 英文别名）→ Kevin MacLeod CC-BY URL；`dominantBgm()` 统计脚本中最常见风格；`downloadBgm()` 下载 mp3 |
+| `src/app/api/jobs/[id]/stitch/route.ts` | crossfade concat 后追加 BGM 混音：`ffmpeg amix` 人声 100% + BGM 12%；BGM 不存在时 fallback 直接 copy |
+| `src/app/(app)/jobs/[id]/page.tsx` | 每个 clip 行增加 **Regen** 按钮；估算时间范围 `clip_index × 15s`；调用 `/api/studio/remix/splice?ai-generate` |
+| `src/app/api/influencers/[id]/register-kling/route.ts` | **新建**：`POST` 调用 `createSubject()`，保存 `kling_element_id` + `kling_element_voice_id` 到 DB |
+| `src/components/influencers/influencer-card.tsx` | 详情弹窗新增「可灵主体库」区块：注册按钮 + 已注册绿色徽标 + 说明文字（双语） |
+| `src/lib/config.ts` | `remix: 5` → `remix: 20` |
+
+### BGM 混音流程
+
+```
+stitch route
+  → crossfadeConcat(processedPaths, concatPath)
+  → dominantBgm(job.script[].bgm)
+  → downloadBgm(style, bgmPath)
+  → ffmpeg amix: 人声 100% + BGM 12%
+  → upload R2 → job=done
+```
+
+---
+
+## ✅ Round 24（2026-02-19）— Remix v2：三种创作场景 + Gemini Vision 分析
+
+### 变更内容
+
+| 文件 | 变更 |
+|------|------|
+| `src/app/(app)/studio/remix/remix-wizard.tsx` | **完全重写**：单流程 → 三模式向导（换主体 4步 / 片段替换 / 脚本仿写 6步） |
+| `src/app/(app)/studio/remix/page.tsx` | 新增 jobs 查询（`final_video_url` 不为空），传入 wizard |
+| `src/app/api/studio/remix/analyze/route.ts` | **新建**：FFmpeg 6帧提取 → Gemini Vision → `RemixAnalysis` |
+| `src/app/api/studio/remix/create/route.ts` | **新建**：接收 `RemixAnalysis`，参考视频镜像到 R2，deferred clip 链式提交 |
+| `src/app/api/studio/remix/splice/route.ts` | **新建**：`upload-clip`（FFmpeg concat 同步）+ `ai-generate`（Kling 生成 + webhook 三段拼接） |
+
+### Remix 三场景对比
+
+| 场景 | 核心技术 | 积分 |
+|------|---------|------|
+| 换主体 (Visual Remix) | Kling omni `refer_type:"feature"` | 20 |
+| 片段替换 (Segment Splice) | FFmpeg 剪切 + Kling image2video / concat | 0 |
+| 脚本仿写 (Script Imitation) | Gemini Vision 6帧分析 + deferred chain | 20 |
+
+---
 
 ## ✅ Round 13（2026-02-19）— 网红科普 Hub + 全动画 + 论文解读 + 多Provider架构
 
