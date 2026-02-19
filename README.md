@@ -1,4 +1,4 @@
-# Dreamlab — AI Influencer Factory
+# Dreamlab — AI Influencer Studio
 
 AI-powered video generation platform. Create podcast, educational, remix, anime, and story videos using virtual influencers, powered by Kling AI.
 
@@ -8,11 +8,11 @@ AI-powered video generation platform. Create podcast, educational, remix, anime,
 |-------|-----------|
 | Framework | Next.js 15 (App Router) + React 19 + TypeScript |
 | Auth & DB | Supabase (PostgreSQL + RLS + Auth) |
-| AI Video | Kling AI (image2video, multi-shot, lip-sync) |
-| AI Script | Google Gemini 2.0 Flash |
+| AI Video | Kling AI (image2video, multi-shot, Subject Library 3.0) |
+| AI Script | Google Gemini 2.0 Flash (retry + timeout wrapper) |
 | Storage | Cloudflare R2 (S3-compatible) |
 | Payments | Stripe |
-| Video Processing | ffmpeg-static (server-side concat) |
+| Video Processing | ffmpeg-static (dedicated stitch route, maxDuration=300) |
 | Testing | Vitest |
 
 ## Project Structure
@@ -30,30 +30,37 @@ src/
 │       ├── studio/         # Video generation endpoints
 │       │   ├── script/     # Script-based video
 │       │   ├── podcast/    # Podcast video
-│       │   ├── edu/        # Educational video
+│       │   ├── edu/        # Educational video (talk/animated/cinematic/paper)
 │       │   ├── remix/      # Remix video
 │       │   ├── anime/      # Anime-style video
 │       │   ├── story/      # Story video
 │       │   └── link/       # Link-to-video
 │       ├── jobs/
 │       │   ├── [id]/
+│       │   │   ├── stitch/ # FFmpeg stitch (maxDuration=300, x-stitch-secret)
 │       │   │   └── stream/ # SSE: real-time job detail
+│       │   ├── recover/    # Re-fire stalled clips (Supabase Cron, */10 min)
 │       │   └── stream/     # SSE: active jobs list
 │       ├── credits/        # Stripe checkout
-│       ├── influencers/    # Influencer CRUD
+│       ├── influencers/    # Influencer CRUD + auto Subject Library registration
+│       ├── admin/
+│       │   └── influencers/sync-subjects/ # Bulk Kling Subject Library sync
 │       └── webhooks/
-│           ├── kling/      # Kling callback + ffmpeg stitch
+│           ├── kling/      # Kling callback (thin — triggers stitch via fetch)
 │           └── stripe/     # Stripe payment events
 ├── lib/
 │   ├── config.ts           # Credit costs & packages (single source of truth)
 │   ├── api-response.ts     # Unified apiError() helper
-│   ├── job-service.ts      # Service layer: deductCredits, createClipRecords
+│   ├── job-service.ts      # deductCredits (bilingual), createClipRecords, failClipAndCheckJob
+│   ├── gemini.ts           # Gemini wrapper: 3 retries, 60s timeout, callGeminiJson<T>
 │   ├── logger.ts           # Structured logging (JSON in prod, colored in dev)
-│   ├── video-utils.ts      # groupClips() — Kling multi-shot batching
-│   ├── kling.ts            # Kling API client with JWT auth + exponential backoff
+│   ├── video-utils.ts      # groupClips(), groupClipsByProvider(), annotateProviders()
+│   ├── video-router.ts     # Multi-provider routing (Kling / Seedance fallback)
+│   ├── kling.ts            # Kling API: JWT auth, image2video, multi-shot, Subject Library
 │   ├── r2.ts               # Cloudflare R2 upload/presign
+│   ├── i18n.ts             # UI string dictionary (zh/en)
 │   └── supabase/           # Supabase client (client/server/service)
-└── __tests__/              # Vitest unit tests (32 tests)
+└── __tests__/              # Vitest unit tests
 ```
 
 ## Environment Variables
@@ -68,6 +75,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 KLING_BASE_URL=https://api.klingai.com
 KLING_ACCESS_KEY=
 KLING_SECRET_KEY=
+KLING_WEBHOOK_SECRET=          # Random hex — appended as ?whs= to callback URL
 
 # Google Gemini
 GEMINI_API_KEY=
@@ -86,6 +94,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+RECOVER_SECRET=                # Random hex — guards /api/jobs/[id]/stitch and /api/jobs/recover
 ```
 
 ## Development
@@ -104,21 +113,66 @@ npm run test:watch # Watch mode
 |----------|---------|
 | Script video | 15 |
 | Podcast | 20 |
-| Educational | 15 |
+| Educational (talk) | 15 |
+| Educational (animated) | 20 |
+| Educational (cinematic) | 20 |
+| Educational (paper) | 25 |
 | Anime | 50 |
 | Story | 30 |
 | Remix | 5 |
 | Link-to-video | 15 |
+| Create influencer | 10 (first free) |
 
 Defined in `src/lib/config.ts` — change prices in one place.
 
-## Architecture Notes
+## Architecture
 
-- **Real-time updates**: Job status pushed via SSE (`/api/jobs/[id]/stream`, `/api/jobs/stream`) — no frontend polling
-- **Retry**: Kling API calls use exponential backoff (3 attempts, 1s/2s/4s delays)
-- **Webhook security**: Kling callbacks re-fetch task status from API instead of trusting payload
-- **Video stitching**: ffmpeg-static concat (stream copy, no re-encode) in the Kling webhook handler
-- **Multi-shot batching**: `groupClips()` splits long scripts into groups of ≤6 shots / ≤15s for Kling's limit
+### Video Generation Flow
+
+```
+wizard → POST /api/studio/[type]
+  → deductCredits (bilingual error)
+  → insert job + clips
+  → submit to Kling (image2video / multi-shot)
+    → callback URL: /api/webhooks/kling?whs=SECRET
+      → update clip status
+      → all clips done → PUT job=stitching
+        → fetch /api/jobs/[id]/stitch (maxDuration=300)
+          → download clips from R2
+          → ffmpeg concat
+          → upload final video to R2
+          → PUT job=done
+      → any clip failed → PUT job=failed + refund credits
+```
+
+### Key Design Decisions
+
+- **FFmpeg in dedicated route**: `POST /api/jobs/[id]/stitch` with `maxDuration=300` avoids Vercel's 60s function timeout. Webhook triggers it via fire-and-forget `fetch()`.
+- **Webhook security**: Kling callback URL includes `?whs=KLING_WEBHOOK_SECRET`. Handler validates before processing.
+- **Credits refund**: Two refund points — submit-time failure (job-service) and generation-time failure (webhook). Uses `add_credits` Supabase RPC.
+- **Gemini reliability**: All script routes use `callGeminiJson<T>()` — 3 retries, 60s timeout per attempt, exponential backoff (1s/2s/4s), strips markdown fences.
+- **Subject Library**: Influencer creation auto-registers with Kling 3.0 Subject Library (fire-and-forget). `buildClipPrompt` prefers `element_id` over `frontal_image_url` for better character consistency.
+- **Multi-provider routing**: `video-router.ts` routes clips to Kling or Seedance based on availability. In-process `Map<provider, blockedUntil>` (resets on cold start — DB-backed routing is a future improvement).
+- **Bilingual API layer**: All user-facing API errors respect `lang` from request body. Job titles stored bilingually based on user's language preference.
+- **Dynamic HTML lang**: Root layout reads `dreamlab-lang` cookie (set by app layout after profile fetch) → `<html lang="en">` or `<html lang="zh-CN">`.
+- **Recovery cron**: Supabase Cron fires `POST /api/jobs/recover` every 10 minutes to re-process clips stuck in `submitted` state > 30 min.
+
+### Kling API 3.0 Reference
+
+| Parameter | Notes |
+|-----------|-------|
+| `multi_shot: true` | Multi-shot mode (boolean) |
+| `shot_type: "intelligence"` | Model auto-cuts; single prompt |
+| `shot_type: "customize"` | Manual shots; `multi_prompt` array |
+| `sound: "on"` | Enable audio generation |
+| `element_list` | Subject control (character image binding) |
+| `voice_list` | Voice binding (via Subject Library `voice_id`) |
+| `duration` | String enum `"3"`–`"15"` |
+
+**Multi-shot grouping strategy** (`groupClips`):
+- Each group: ≤ 6 shots AND total duration ≤ 15s
+- Single-clip group → `intelligence` mode
+- Multi-clip group → `customize` mode + `multi_prompt`
 
 ## Detailed Docs
 

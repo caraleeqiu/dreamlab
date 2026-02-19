@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-18 (Round 13)
+> **最后更新**: 2026-02-19 (Round 15)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -8,7 +8,7 @@
 
 ## 🟢 当前状态
 
-全流程可测试 — TS 零错误，14个网红图片全部上传，完整导航结构（工作台/网红管理/内容创作/任务管理/历史作品）
+生产可用 — TS 零错误，架构审查完毕，P0/P1 问题全部修复，API 层全双语
 
 **Round 11 更新：**
 - 网红详情弹窗全双语（EN 下标签/领域/风格/禁区/声线标题全翻译）
@@ -16,28 +16,34 @@
 - AppHeader 子页面返回按钮（/studio/* /jobs/* /influencers/*）
 - 播客入口卡片改为竖排 3 列网格
 - trending-cache.json 修复 JSON 解析错误（内嵌引号）
-- 热点分类 TOPIC_CATEGORIES 与 cache key 对齐（娱乐/科技/生活/社会/体育）
-- 内容创作所有卡片统一大小（grid-cols-4，p-4，text-xs line-clamp-2）
-- 看灵感页面全双语（标题/副标题/做播客按钮）
 
 **Round 12 更新：**
 - 动漫营销视频 wizard v2：6步流程（全双语）
-  - Step 1: 产品输入（URL/文本 → AI 识别 → 预填字段 + 建议分类；可跳过手填）
-  - Step 2: 分类+产品信息（吃🍜/穿👗/玩🎮/用🔧 + 品牌名/产品名/卖点/受众；必填 brand+product 才能继续）
-  - Step 3: 选角（分类推荐排序 + 推荐标签；空列表时引导去网红库；底部「没合适角色？去网红库创建」）
-  - Step 4: 格式（口播类/剧情类/其他 + 比例9:16/16:9/1:1含平台提示 + 总时长15s/30s/60s/3min映射clip数1/2/4/12）
-  - Step 5: 脚本预览
-  - Step 6: 生成确认（展示角色/格式/比例时长）
-  - 动漫风格根据 category+character 自动推断（wear→modern，eat+virtual→cute，play→fantasy，use→cyberpunk）
-  - 新增 `/api/studio/anime/extract-product` — Gemini 2.0 Flash 解析产品信息（支持URL/纯文本，Jina读链接）
-  - TS 零错误（修复 studio/page.tsx LineCard 类型、删除废弃 DURATIONS 数组）
+- 新增 `/api/studio/anime/extract-product` — Gemini 2.0 Flash 解析产品信息
+- TS 零错误
 
 **Round 13 更新：**
-- credits 页全双语（useLanguage hook，所有硬编码中文替换为 UI.credits.* i18n）
-- stitchVideo 迁移到 ffmpeg-static + fluent-ffmpeg（纯 npm，无需 Python + moviepy）
-  - ffmpeg concat demuxer 流复制拼接，不重新编码，速度快
-  - Railway 部署无需额外安装任何系统依赖
-- OpenStoryline（小红书）暂未开源，2026 年 2 月仍在内测，暂不集成
+- credits 页全双语
+- stitchVideo 迁移到 ffmpeg-static + fluent-ffmpeg（纯 npm）
+
+**Round 14 更新（架构修复 P0/P1）：**
+- **P0 — FFmpeg超时**：FFmpeg 提取到独立路由 `/api/jobs/[id]/stitch`（`maxDuration=300`，`x-stitch-secret` 保护）；webhook 变薄，只更新 clip 状态，fire-and-forget 触发 stitch
+- **P0 — 积分丢失**：两处退款点 — 提交失败（job-service `failClipAndCheckJob`）+ 生成失败（webhook `checkAndUpdateJobStatus`）；用 `add_credits` RPC 异步 IIFE 退还
+- **P0 — Webhook 安全**：callback URL 追加 `?whs=KLING_WEBHOOK_SECRET`；handler 校验后才处理，防止恶意伪造
+- **P1 — Gemini 不稳定**：新建 `src/lib/gemini.ts`（3次重试 + 60s超时 + 指数退避），所有 7 条脚本路由迁移到 `callGeminiJson<T>()`
+- **P1 — Subject Library**：网红创建时自动注册 Kling 3.0 Subject Library（fire-and-forget），`buildClipPrompt` 优先用 `element_id`，兼容旧数据 `frontal_image_url` fallback
+- **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
+- **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
+- Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 15 更新（i18n 修复）：**
+- **API 层双语**：`deductCredits()` 新增 `lang` 参数，402 错误返回对应语言（`积分不足` / `Insufficient credits`）
+- **所有 10 条 studio 路由** 传 `lang` 给 `deductCredits`；job 默认标题按语言切换（`科普:` / `Science:` 等）
+- **创建任务失败** 错误双语（podcast/script/link 路由）
+- **`error_msg` 改为英文**：webhook / job-service 中存 DB 的错误描述统一英文
+- **动态 `<html lang>`**：app layout 写 `dreamlab-lang` cookie → root layout 读取 → `zh-CN` / `en`
+- **remix/route.ts** 迁移 raw Gemini fetch → `callGeminiJson`（最后一条未迁移路由）
+- OpenStoryline（小红书）暂未开源，暂不集成
 
 ---
 
@@ -69,13 +75,18 @@ source dev.sh  # 重启 dev server
 | 🟢 | 14 个网红图片上传 R2 + DB 更新 | ✅ 完成 |
 | 🟢 | 完整导航架构（工作台/任务/历史作品/分类） | ✅ 完成 |
 | 🟢 | 动漫营销视频 wizard v2（产品识别+6步流程） | ✅ 完成 |
-| 🟢 | stitchVideo 用 ffmpeg-static（npm 内置，Railway 无需安装 ffmpeg/Python） | ✅ 完成 |
+| 🟢 | stitchVideo 用 ffmpeg-static | ✅ 完成 |
 | 🟢 | credits 页完整双语 | ✅ 完成 |
-| 🟢 | Kling 3.0 multi-shot 升级（sound:on, element_list, groupClips） | ✅ 完成 |
-| 🔴 | ngrok 端到端测试（Kling webhook 回调验证） | 待测试 |
-| 🟡 | Kling 自定义声线（Gemini TTS → 上传 Kling → kling_voice_id） | 待做 |
+| 🟢 | Kling 3.0 multi-shot 升级 | ✅ 完成 |
+| 🟢 | P0 架构修复（FFmpeg超时/积分退还/Webhook安全） | ✅ 完成 |
+| 🟢 | P1 架构修复（Gemini重试/Subject Library/恢复任务） | ✅ 完成 |
+| 🟢 | API 层全双语（deductCredits/job titles/html lang） | ✅ 完成 |
+| 🟢 | Supabase Cron 每10分钟触发 /api/jobs/recover | ✅ 完成 |
+| 🔴 | 端到端测试（Kling webhook → stitch → 视频完成全链路） | 待测试 |
+| 🟡 | Kling 自定义声线（Subject Library voice_id 绑定） | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
-| 🟡 | Railway 部署 | 待做 |
+| 🟡 | DB 迁移 002 执行（provider/task_id/element_id 字段） | 待确认 |
+| 🟡 | blockProvider 持久化（当前 in-process Map，cold start 会重置） | 待做 |
 | ⬜ | JINA_API_KEY 申请（免费，不填也能跑） | 可选 |
 
 ---
@@ -124,8 +135,14 @@ wizard → POST /api/studio/[type] → 扣积分 → 创建 job → 提交 Kling
 | `dreamlab/dev.sh` | 从 Keychain 加载所有 secrets |
 | `dreamlab/.env.local` | Supabase URL/key + ngrok URL |
 | `dreamlab/supabase/schema.sql` | 数据库 schema |
+| `dreamlab/supabase/migrations/002_multi_provider_clips.sql` | 多 provider + Subject Library 字段迁移 |
 | `dreamlab/scripts/seed-influencers.ts` | 12个内置网红种子数据 |
 | `dreamlab/scripts/upload-influencer-images.py` | boto3 上传图片到 R2 + 更新 DB |
+| `src/lib/gemini.ts` | Gemini 统一 wrapper（重试/超时） |
+| `src/lib/job-service.ts` | deductCredits（双语）/ failClipAndCheckJob |
+| `src/lib/video-router.ts` | 多 provider 路由（Kling/Seedance） |
+| `src/app/api/jobs/[id]/stitch/route.ts` | FFmpeg stitch（maxDuration=300） |
+| `src/app/api/jobs/recover/route.ts` | 卡住 clip 恢复（Cron 触发） |
 | `dreamlab-assets/kling-api.md` | 可灵 API 参考 |
 | `trend-fetcher/fetch_trends.py` | 英文热点抓取 |
 
