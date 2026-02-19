@@ -38,11 +38,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers, durationS, lang } = await req.json()
+  const { storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers, durationS, lang, castRoles } = await req.json()
 
-  const castDesc = (influencers as Influencer[]).map((inf, i) =>
-    `角色${i + 1}（演员：${inf.name}）：${inf.tagline}，性格：${inf.personality?.join('、') || '多样'}`
-  ).join('\n')
+  const castDesc = (influencers as Influencer[]).map((inf, i) => {
+    const roleName = (castRoles as Record<number, string> | undefined)?.[inf.id]
+    const roleStr = roleName ? `，角色：${roleName}` : ''
+    return `角色${i + 1}（演员：${inf.name}${roleStr}）：${inf.tagline}，性格：${inf.personality?.join('、') || '多样'}`
+  }).join('\n')
 
   const langNote     = lang === 'en' ? 'Write all dialogue in English.' : '所有台词用中文写。'
   const genreDesc    = GENRE_PROMPT[genre] || '创意故事'

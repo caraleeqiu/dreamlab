@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, forwardRef, useImperativeHandle } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Film, Loader2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,11 @@ interface Props {
   influencers: Influencer[]
 }
 
-export default function StoryWizard({ lang, credits, influencers }: Props) {
+export interface StoryWizardHandle {
+  jumpToSeries: (name: string, episode: number) => void
+}
+
+const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ lang, credits, influencers }, ref) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('story')
   const [category, setCategory] = useState<Category>('suspense')
@@ -37,9 +41,21 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
   const [aspectRatio, setAspectRatio] = useState('9:16')
   const [duration, setDuration] = useState(60)
   const [script, setScript] = useState<ScriptClip[] | null>(null)
+  const [castRoles, setCastRoles] = useState<Record<number, string>>({})
+  const [cliffhanger, setCliffhanger] = useState('')
+  const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set())
   const [loadingScript, setLoadingScript] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  useImperativeHandle(ref, () => ({
+    jumpToSeries(name: string, episode: number) {
+      setSeriesMode(true)
+      setSeriesName(name)
+      setEpisodeNumber(episode)
+      setStep('story')
+    },
+  }))
 
   const platforms = PLATFORMS[lang]
   const CREDIT_COST = 30
@@ -118,11 +134,12 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
       const res = await fetch('/api/studio/story/script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers: castInfluencers, durationS: duration, lang }),
+        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers: castInfluencers, durationS: duration, lang, castRoles }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
       setScript(data.script)
+      if (data.cliffhanger) setCliffhanger(data.cliffhanger)
       setStep('script')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : t(lang, UI.common.error))
@@ -139,7 +156,7 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
       const res = await fetch('/api/studio/story', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencerIds: castInfluencers.map(i => i.id), platform, aspectRatio, durationS: duration, script, lang }),
+        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencerIds: castInfluencers.map(i => i.id), platform, aspectRatio, durationS: duration, script, lang, castRoles, cliffhanger }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
@@ -343,6 +360,22 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
           {castInfluencers.length > 0 && (
             <p className="text-xs text-zinc-500">{t(lang, UI.wizard.storySelected)}{castInfluencers.map(i => i.name).join('、')}</p>
           )}
+          {castInfluencers.length > 0 && (
+            <div className="space-y-2 mt-3">
+              <Label className="text-zinc-400">{lang === 'zh' ? '角色设定（可选）' : 'Character Roles (optional)'}</Label>
+              {castInfluencers.map(inf => (
+                <div key={inf.id} className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400 w-20 shrink-0">{inf.name}</span>
+                  <Input
+                    placeholder={lang === 'zh' ? '扮演：卡车司机、神秘乘客...' : 'Role: truck driver, mysterious stranger...'}
+                    value={castRoles[inf.id] || ''}
+                    onChange={e => setCastRoles(prev => ({ ...prev, [inf.id]: e.target.value }))}
+                    className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 text-xs h-8"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep('story')} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">{t(lang, UI.wizard.prevBtn)}</Button>
             <Button onClick={() => setStep('platform')} disabled={castInfluencers.length === 0} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white">
@@ -392,8 +425,31 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
                   {clip.speaker && <span className="text-xs text-zinc-500">{lang === 'zh' ? '出演：' : 'Cast: '}{clip.speaker}</span>}
                   <span className="text-xs text-zinc-600 ml-auto">{clip.duration}s</span>
                 </div>
-                {clip.shot_description && <p className="text-xs text-zinc-500 mb-1 italic">{clip.shot_description}</p>}
-                {clip.dialogue && <p className="text-sm text-zinc-200 leading-relaxed border-l-2 border-violet-600 pl-2">"{clip.dialogue}"</p>}
+                {clip.shot_description && (
+                  <div className="mb-1">
+                    <button
+                      onClick={() => setExpandedScenes(prev => {
+                        const next = new Set(prev)
+                        next.has(i) ? next.delete(i) : next.add(i)
+                        return next
+                      })}
+                      className="text-xs text-zinc-600 hover:text-zinc-400 italic transition-colors"
+                    >
+                      {expandedScenes.has(i) ? '▼' : '▶'} {lang === 'zh' ? '分镜描述' : 'Shot description'}
+                    </button>
+                    {expandedScenes.has(i) && (
+                      <p className="text-xs text-zinc-500 mt-1 italic pl-3">{clip.shot_description}</p>
+                    )}
+                  </div>
+                )}
+                {clip.dialogue !== undefined && (
+                  <textarea
+                    value={clip.dialogue}
+                    onChange={e => setScript(prev => prev ? prev.map((c, j) => j === i ? { ...c, dialogue: e.target.value } : c) : prev)}
+                    rows={2}
+                    className="w-full text-sm text-zinc-200 leading-relaxed border-l-2 border-violet-600 pl-2 bg-transparent resize-none focus:outline-none"
+                  />
+                )}
                 {/* 音效标注 */}
                 <div className="mt-2 flex gap-1.5 flex-wrap">
                   {[
@@ -467,4 +523,6 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
       )}
     </div>
   )
-}
+})
+
+export default StoryWizard

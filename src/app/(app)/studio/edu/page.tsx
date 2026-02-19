@@ -23,14 +23,13 @@ const SUB_TYPES = [
     tags: { zh: ['动画', '故事', '动漫风格'], en: ['Animation', 'Story', 'Anime style'] },
   },
   {
-    href: null,
+    href: '/studio/edu/paper',
     emoji: '📄',
     title: { zh: '论文解读', en: 'Paper Explainer' },
-    desc:  { zh: '上传论文 PDF，AI 生成分镜概念图 + 网红解读视频（即将上线）', en: 'Upload a paper, AI generates concept diagrams + influencer explainer (coming soon)' },
-    credit: { zh: '即将上线', en: 'Coming soon' },
-    creditClass: 'text-zinc-600',
-    tags: { zh: ['论文', '分镜图', 'Napkin AI'], en: ['Paper', 'Diagrams', 'Napkin AI'] },
-    comingSoon: true,
+    desc:  { zh: '论文 / arXiv 链接 → Napkin 分镜图 + 网红 PiP 解读视频，自动合成画中画', en: 'Paper / arXiv → Napkin concept diagrams + influencer PiP explainer, auto-composed' },
+    credit: { zh: '40积分', en: '40 credits' },
+    creditClass: 'text-sky-400',
+    tags: { zh: ['论文', 'PiP 画中画', 'Napkin AI'], en: ['Paper', 'PiP overlay', 'Napkin AI'] },
   },
 ]
 
@@ -64,11 +63,7 @@ export default async function EduHubPage() {
           const card = (
             <div
               key={i}
-              className={`p-5 rounded-xl border transition-all ${
-                type.comingSoon
-                  ? 'border-zinc-800 bg-zinc-900/50 opacity-60 cursor-not-allowed'
-                  : 'border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/80 cursor-pointer'
-              }`}
+              className="p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/80 cursor-pointer transition-all"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -78,11 +73,6 @@ export default async function EduHubPage() {
                       <h2 className="font-semibold text-white text-sm">
                         {type.title[lang]}
                       </h2>
-                      {type.comingSoon && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">
-                          {isZh ? '即将上线' : 'Soon'}
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-zinc-500 leading-relaxed mb-2">
                       {type.desc[lang]}
@@ -103,7 +93,7 @@ export default async function EduHubPage() {
             </div>
           )
 
-          return type.href && !type.comingSoon
+          return type.href
             ? <Link key={i} href={type.href}>{card}</Link>
             : <div key={i}>{card}</div>
         })}
