@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 
 // POST /api/studio/link/extract
 // body: { url, language }
-// 返回：{ summary: string, title: string }
+// Returns: { summary: string, title: string }
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -11,51 +12,90 @@ export async function POST(request: NextRequest) {
 
   const { url, language } = await request.json()
   const isZh = language !== 'en'
+  const trimmedUrl = (url ?? '').trim()
 
-  // 1. 抓取 URL 内容
+  if (!trimmedUrl) return NextResponse.json({ error: 'URL is required' }, { status: 400 })
+
+  // Platform detection — return friendly errors before hitting Jina
+  const isWechat   = /mp\.weixin\.qq\.com/.test(trimmedUrl)
+  const isBilibili = /bilibili\.com/.test(trimmedUrl)
+  const isDouyin   = /douyin\.com/.test(trimmedUrl)
+  const isXhs      = /xiaohongshu\.com/.test(trimmedUrl)
+  const isTwitter  = /twitter\.com|x\.com/.test(trimmedUrl)
+
+  if (isWechat) return NextResponse.json({
+    error: isZh
+      ? '微信公众号无法直接读取，请复制正文后使用「自定义脚本」'
+      : 'WeChat articles require login. Copy the text and use the Script wizard.',
+    fallback: 'script',
+  }, { status: 422 })
+
+  if (isBilibili || isDouyin) return NextResponse.json({
+    error: isZh
+      ? '暂不支持视频平台链接，请复制视频文案或简介后使用「自定义脚本」'
+      : 'Video platform links are not supported. Copy the description and use the Script wizard.',
+    fallback: 'script',
+  }, { status: 422 })
+
+  if (isXhs) return NextResponse.json({
+    error: isZh
+      ? '小红书链接需要登录，请复制笔记内容后使用「自定义脚本」'
+      : 'Xiaohongshu requires login. Copy the content and use the Script wizard.',
+    fallback: 'script',
+  }, { status: 422 })
+
   let rawContent = ''
-  let pageTitle = ''
+  let pageTitle   = ''
 
-  try {
-    const fetchRes = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; DreamlabBot/1.0)',
-        'Accept': 'text/html,application/xhtml+xml,*/*',
-      },
-      signal: AbortSignal.timeout(10000),
-    })
-
-    if (!fetchRes.ok) {
-      return NextResponse.json({ error: `无法访问该链接（HTTP ${fetchRes.status}）` }, { status: 422 })
+  if (isTwitter) {
+    // Twitter/X: use oEmbed API (no auth required, single tweets only)
+    try {
+      const oembedRes = await fetch(
+        `https://publish.twitter.com/oembed?url=${encodeURIComponent(trimmedUrl)}&omit_script=true`,
+        { signal: AbortSignal.timeout(10000) },
+      )
+      if (!oembedRes.ok) throw new Error('oEmbed failed')
+      const data = await oembedRes.json() as { html?: string; author_name?: string }
+      rawContent = (data.html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+      pageTitle  = data.author_name ? `Tweet by @${data.author_name}` : 'Twitter'
+      if (!rawContent) throw new Error('empty')
+    } catch {
+      return NextResponse.json({
+        error: isZh
+          ? '仅支持单条推文，Thread 请复制全文后使用「自定义脚本」'
+          : 'Only single tweets are supported. For threads, copy the text and use the Script wizard.',
+        fallback: 'script',
+      }, { status: 422 })
     }
+  } else {
+    // Jina AI Reader — strips nav/ads, returns clean article text
+    const jinaUrl = `https://r.jina.ai/${trimmedUrl}`
+    const jinaHeaders: Record<string, string> = { 'Accept': 'text/plain', 'X-Return-Format': 'text' }
+    if (process.env.JINA_API_KEY) jinaHeaders['Authorization'] = `Bearer ${process.env.JINA_API_KEY}`
 
-    const html = await fetchRes.text()
-
-    // 提取 title
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-    pageTitle = titleMatch ? titleMatch[1].trim() : ''
-
-    // 粗提取正文：去除 script/style 标签，保留文字
-    rawContent = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 8000) // 限制长度
-  } catch (err) {
-    return NextResponse.json({
-      error: '链接抓取失败，可能是微信公众号或需要登录的页面。请手动复制正文后使用「自定义脚本」流程。',
+    const jinaRes = await fetch(jinaUrl, { headers: jinaHeaders, signal: AbortSignal.timeout(30000) })
+    if (!jinaRes.ok) return NextResponse.json({
+      error: isZh
+        ? `无法读取该链接（${jinaRes.status}），请复制正文后使用「自定义脚本」`
+        : `Cannot read this URL (${jinaRes.status}). Copy the text and use the Script wizard.`,
+      fallback: 'script',
     }, { status: 422 })
+
+    const jinaText = await jinaRes.text()
+    if (!jinaText.trim()) return NextResponse.json({
+      error: isZh
+        ? '页面内容为空，可能需要登录，请复制正文后使用「自定义脚本」'
+        : 'Page content is empty, may require login. Copy the text and use the Script wizard.',
+      fallback: 'script',
+    }, { status: 422 })
+
+    // Extract title from Jina response (usually the first line starting with "Title:")
+    const titleLine = jinaText.split('\n').find(l => /^title:/i.test(l))
+    pageTitle  = titleLine ? titleLine.replace(/^title:\s*/i, '').trim() : ''
+    rawContent = jinaText.slice(0, 60000)
   }
 
-  if (!rawContent || rawContent.length < 100) {
-    return NextResponse.json({
-      error: '页面内容过少，无法提取。请手动复制正文后使用「自定义脚本」流程。',
-    }, { status: 422 })
-  }
-
-  // 2. Gemini 提炼摘要
+  // Gemini summarisation
   const systemPrompt = isZh
     ? `你是内容提炼专家。从网页内容中提取核心信息，整理为适合视频脚本的摘要。
 要求：
@@ -77,7 +117,7 @@ Requirements:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ parts: [{ text: `标题：${pageTitle}\n\n内容：${rawContent}` }] }],
+        contents: [{ parts: [{ text: `${pageTitle ? `标题：${pageTitle}\n\n` : ''}内容：${rawContent}` }] }],
       }),
     }
   )
@@ -85,7 +125,7 @@ Requirements:
   const geminiData = await geminiRes.json()
   const summary = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
 
-  if (!summary) return NextResponse.json({ error: 'AI 提炼失败' }, { status: 500 })
+  if (!summary) return NextResponse.json({ error: isZh ? 'AI 提炼失败' : 'AI extraction failed' }, { status: 500 })
 
   return NextResponse.json({ summary, title: pageTitle })
 }

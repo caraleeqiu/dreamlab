@@ -12,9 +12,9 @@ import { t, UI } from '@/lib/i18n'
 
 interface Topic { id: string; title: string; angle: string; source: string; date: string }
 interface Concept { title: string; summary: string }
-interface Props { lang: Language; credits: number; influencers: Influencer[]; initialMode?: 'trending' | 'url' | 'pdf' | 'write' }
+interface Props { lang: Language; credits: number; influencers: Influencer[]; initialMode?: 'trending' | 'url' | 'pdf' | 'write'; initialPrefs?: Record<string, unknown> }
 
-export default function PodcastWizard({ lang, credits, influencers, initialMode }: Props) {
+export default function PodcastWizard({ lang, credits, influencers, initialMode, initialPrefs = {} }: Props) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [step, setStep] = useState(0)
@@ -50,10 +50,10 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
   const [concepts, setConcepts] = useState<Concept[]>([])
   const [selectedConcepts, setSelectedConcepts] = useState<number[]>([])
 
-  // Step 2
-  const [format, setFormat] = useState<'solo' | 'dialogue'>('dialogue')
-  const [platform, setPlatform] = useState(PLATFORMS[lang][0].value)
-  const [duration, setDuration] = useState(180)
+  // Step 2 — pre-filled from saved preferences
+  const [format, setFormat] = useState<'solo' | 'dialogue'>((initialPrefs.format as 'solo' | 'dialogue') ?? 'dialogue')
+  const [platform, setPlatform] = useState((initialPrefs.platform as string) ?? PLATFORMS[lang][0].value)
+  const [duration, setDuration] = useState((initialPrefs.duration as number) ?? 180)
   const [selectedInfluencers, setSelectedInfluencers] = useState<Influencer[]>([])
 
   // Step 3
@@ -264,6 +264,14 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
       if (prev.length >= maxInfluencers) return prev
       return [...prev, inf]
     })
+  }
+
+  function savePrefs() {
+    fetch('/api/user/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'podcast', prefs: { platform, duration, format } }),
+    }).catch(() => { /* silent — non-critical */ })
   }
 
   function toggleConcept(i: number) {
@@ -769,7 +777,7 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
           </Button>
         )}
         {step === 2 && (
-          <Button onClick={() => { setStep(3); generateScript() }}
+          <Button onClick={() => { savePrefs(); setStep(3); generateScript() }}
             className="bg-violet-600 hover:bg-violet-700 text-white">
             {t(lang, UI.podcast.generateScriptBtn)}
           </Button>

@@ -9,9 +9,9 @@ import { PLATFORMS } from '@/lib/language'
 import { UI, t } from '@/lib/i18n'
 import type { Language, Influencer, ScriptClip } from '@/types'
 
-interface Props { lang: Language; credits: number; influencers: Influencer[] }
+interface Props { lang: Language; credits: number; influencers: Influencer[]; initialPrefs?: Record<string, unknown> }
 
-export default function LinkWizard({ lang, credits, influencers }: Props) {
+export default function LinkWizard({ lang, credits, influencers, initialPrefs = {} }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -21,8 +21,8 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
   const [summary, setSummary] = useState('')
   const [extractError, setExtractError] = useState('')
   const [selectedInfluencer, setSelectedInfluencer] = useState<Influencer | null>(null)
-  const [platform, setPlatform] = useState(PLATFORMS[lang][0].value)
-  const [duration, setDuration] = useState(180)
+  const [platform, setPlatform] = useState((initialPrefs.platform as string) ?? PLATFORMS[lang][0].value)
+  const [duration, setDuration] = useState((initialPrefs.duration as number) ?? 180)
   const [storyboard, setStoryboard] = useState<ScriptClip[]>([])
 
   const platforms = PLATFORMS[lang]
@@ -44,6 +44,14 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
       setSummary(data.summary || '')
     }
     setLoading(false)
+  }
+
+  function savePrefs() {
+    fetch('/api/user/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'link', prefs: { platform, duration } }),
+    }).catch(() => { /* silent */ })
   }
 
   async function generateStoryboard() {
@@ -96,14 +104,64 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
       {step === 0 && (
         <div className="space-y-3">
           <p className="text-sm text-zinc-400">{t(lang, UI.wizard.linkDesc)}</p>
-          <div className="space-y-1">
-            <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..."
-              className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
-            />
-          </div>
-          <div className="text-xs text-zinc-600 space-y-1">
-            <p>{lang === 'zh' ? '支持：普通网页文章、知乎、YouTube（仅标题+描述）' : 'Supports: web articles, Zhihu, YouTube (title + description only)'}</p>
-            <p>{lang === 'zh' ? '微信公众号文章可能需要手动复制正文，改用「自定义脚本」' : 'WeChat articles may need manual copy — use Custom Script instead'}</p>
+          <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://..."
+            className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+          />
+          {/* Source hints — zh/en separated */}
+          <div className="rounded-xl border border-zinc-800 p-3 space-y-2 text-xs">
+            {lang === 'zh' ? (
+              <>
+                <div>
+                  <p className="text-zinc-400 font-medium mb-1">✅ 支持的来源</p>
+                  <ul className="space-y-0.5 text-zinc-500">
+                    {['任意文章链接', '知乎', '微博', 'Twitter / X（单条推文）'].map(s => (
+                      <li key={s} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-zinc-600 shrink-0" />{s}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="border-t border-zinc-800 pt-2">
+                  <p className="text-zinc-400 font-medium mb-1">❌ 不支持的来源</p>
+                  <ul className="space-y-0.5">
+                    {[
+                      { name: '微信公众号', tip: '复制正文后使用「自定义脚本」' },
+                      { name: '小红书', tip: '需登录，复制内容后使用「自定义脚本」' },
+                      { name: 'B站 / 抖音', tip: '复制视频文案后使用「自定义脚本」' },
+                    ].map(s => (
+                      <li key={s.name} className="flex items-start gap-1.5 text-zinc-600">
+                        <span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0 mt-1.5" />
+                        <span><span className="text-zinc-500">{s.name}</span><span className="ml-1">— {s.tip}</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="text-zinc-400 font-medium mb-1">✅ Supported sources</p>
+                  <ul className="space-y-0.5 text-zinc-500">
+                    {['Any article URL', 'Medium / Substack', 'Hacker News', 'Twitter / X (single tweet)'].map(s => (
+                      <li key={s} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-zinc-600 shrink-0" />{s}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="border-t border-zinc-800 pt-2">
+                  <p className="text-zinc-400 font-medium mb-1">❌ Unsupported sources</p>
+                  <ul className="space-y-0.5">
+                    {[
+                      { name: 'WeChat articles', tip: 'Copy text → use Script wizard' },
+                      { name: 'Xiaohongshu', tip: 'Requires login → copy text → Script wizard' },
+                      { name: 'YouTube / TikTok / Bilibili', tip: 'Copy description → Script wizard' },
+                    ].map(s => (
+                      <li key={s.name} className="flex items-start gap-1.5 text-zinc-600">
+                        <span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0 mt-1.5" />
+                        <span><span className="text-zinc-500">{s.name}</span><span className="ml-1">— {s.tip}</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -273,7 +331,7 @@ export default function LinkWizard({ lang, credits, influencers }: Props) {
           </Button>
         )}
         {step === 3 && (
-          <Button onClick={() => { setStep(4); generateStoryboard() }} className="bg-violet-600 hover:bg-violet-700 text-white">
+          <Button onClick={() => { savePrefs(); setStep(4); generateStoryboard() }} className="bg-violet-600 hover:bg-violet-700 text-white">
             {lang === 'zh' ? 'AI 生成分镜' : 'AI Storyboard'}
           </Button>
         )}

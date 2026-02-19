@@ -20,9 +20,10 @@ interface Props {
   credits: number
   influencers: Influencer[]
   recentJobs: Job[]
+  initialPrefs?: Record<string, unknown>
 }
 
-export default function PodcastClient({ lang, credits, influencers, recentJobs }: Props) {
+export default function PodcastClient({ lang, credits, influencers, recentJobs, initialPrefs = {} }: Props) {
   const [mode, setMode] = useState<PodcastMode | null>(null)
 
   const MODES: { id: PodcastMode; icon: React.ReactNode; title: string; desc: string; badge?: string }[] = [
@@ -89,6 +90,7 @@ export default function PodcastClient({ lang, credits, influencers, recentJobs }
           credits={credits}
           influencers={influencers}
           initialMode={mode}
+          initialPrefs={initialPrefs}
         />
       </div>
     )
