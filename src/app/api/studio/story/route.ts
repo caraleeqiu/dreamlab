@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
   if (!influencers?.length) return apiError('Influencers not found', 404)
 
   const service = await createServiceClient()
-  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.story, `故事短片: ${storyTitle || storyIdea.slice(0, 30)}`)
+  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.story, `story: ${storyTitle || storyIdea.slice(0, 30)}`, lang || 'zh')
   if (creditError) return creditError
 
-  const title = storyTitle || `故事: ${storyIdea.slice(0, 20)}...`
+  const title = storyTitle || (lang === 'en' ? `Story: ${storyIdea.slice(0, 20)}...` : `故事: ${storyIdea.slice(0, 20)}...`)
 
   const clips = script as ScriptClip[]
   const lastClip = clips[clips.length - 1]

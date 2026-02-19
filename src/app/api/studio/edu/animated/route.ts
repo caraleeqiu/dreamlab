@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
   const service = await createServiceClient()
   const creditError = await deductCredits(
     service, user.id, CREDIT_COSTS.edu_animated,
-    `动画科普: ${content.title || content.summary?.slice(0, 30)}`
+    `edu_animated: ${content.title || content.summary?.slice(0, 30)}`,
+    lang || 'zh',
   )
   if (creditError) return creditError
 
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'edu', status: 'generating', language: lang || 'zh',
-    title: `动画科普: ${content.title}`,
+    title: lang === 'en' ? `Animated Science: ${content.title}` : `动画科普: ${content.title}`,
     platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [influencerId], script,
     credit_cost: CREDIT_COSTS.edu_animated,

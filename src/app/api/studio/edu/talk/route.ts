@@ -26,13 +26,14 @@ export async function POST(req: NextRequest) {
   const service = await createServiceClient()
   const creditError = await deductCredits(
     service, user.id, CREDIT_COSTS.edu_talk,
-    `口播科普: ${content.title || content.summary?.slice(0, 30) || '未命名'}`
+    `edu_talk: ${content.title || content.summary?.slice(0, 30) || 'untitled'}`,
+    lang || 'zh',
   )
   if (creditError) return creditError
 
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'edu', status: 'generating', language: lang || 'zh',
-    title: `科普: ${content.title || content.summary?.slice(0, 20)}`,
+    title: lang === 'en' ? `Science: ${content.title || content.summary?.slice(0, 20)}` : `科普: ${content.title || content.summary?.slice(0, 20)}`,
     platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [influencerId], duration_s: durationS, script,
     credit_cost: CREDIT_COSTS.edu_talk,

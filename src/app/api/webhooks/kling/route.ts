@@ -108,7 +108,7 @@ async function checkAndUpdateJobStatus(
       .single()
 
     await service.from('jobs')
-      .update({ status: 'failed', error_msg: '部分切片生成失败' })
+      .update({ status: 'failed', error_msg: 'clip generation failed' })
       .eq('id', jobId)
 
     if (job?.user_id && job.credit_cost > 0) {

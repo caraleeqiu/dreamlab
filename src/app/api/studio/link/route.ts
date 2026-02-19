@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   const service = await createServiceClient()
-  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.link, 'link')
+  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.link, 'link', language)
   if (creditError) return creditError
 
   const { data: influencers } = await supabase
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       type: 'link',
       status: 'scripting',
       language,
-      title: title || source_url || '链接导入',
+      title: title || source_url || (language === 'en' ? 'Link Import' : '链接导入'),
       platform,
       aspect_ratio,
       duration_s,
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     .select()
     .single()
 
-  if (jobError || !job) return apiError(jobError?.message ?? '创建任务失败', 500)
+  if (jobError || !job) return apiError(jobError?.message ?? (language === 'en' ? 'Failed to create job' : '创建任务失败'), 500)
 
   await supabase.from('jobs').update({ status: 'generating' }).eq('id', job.id)
 

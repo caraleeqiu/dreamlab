@@ -5,6 +5,7 @@ import { classifyKlingResponse } from '@/lib/video-router'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
 import { deductCredits, createClipRecords, failClipAndCheckJob } from '@/lib/job-service'
+import { callGeminiJson } from '@/lib/gemini'
 import type { Influencer } from '@/types'
 
 const REMIX_STYLE_LABELS: Record<string, string> = {
@@ -26,34 +27,25 @@ export async function POST(req: NextRequest) {
   if (!influencer) return apiError('Influencer not found', 404)
 
   const service = await createServiceClient()
-  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.remix, `爆款二创: ${videoTitle || videoUrl.slice(0, 40)}`)
+  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.remix, `remix: ${videoTitle || videoUrl.slice(0, 40)}`, lang || 'zh')
   if (creditError) return creditError
 
   // Generate script via Gemini
-  let script: Array<{ index: number; speaker: string; dialogue: string; shot_description: string; duration: number }> = []
+  type RemixClip = { index: number; speaker: string; dialogue: string; shot_description: string; duration: number }
+  let script: RemixClip[] = []
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text:
-            `你是${influencer.name}，${influencer.tagline}。\n说话风格：${influencer.speaking_style || '自然活泼'}\n\n为以下视频做"${REMIX_STYLE_LABELS[remixStyle] || '二创'}"：\n视频：${videoUrl}\n标题：${videoTitle || ''}\n\n生成${platform}竖屏短视频脚本（${aspectRatio}），约30秒，3-4片段，以你的风格解读。\n\nJSON格式：[{"index":0,"speaker":"${influencer.slug}","dialogue":"台词","shot_description":"分镜描述","duration":8}]`
-          }] }],
-          generationConfig: { responseMimeType: 'application/json' },
-        }),
-      }
-    )
-    const d = await res.json()
-    script = JSON.parse(d.candidates?.[0]?.content?.parts?.[0]?.text || '[]')
+    const userPrompt = `你是${influencer.name}，${influencer.tagline}。\n说话风格：${influencer.speaking_style || '自然活泼'}\n\n为以下视频做"${REMIX_STYLE_LABELS[remixStyle] || '二创'}"：\n视频：${videoUrl}\n标题：${videoTitle || ''}\n\n生成${platform}竖屏短视频脚本（${aspectRatio}），约30秒，3-4片段，以你的风格解读。\n\nJSON格式：[{"index":0,"speaker":"${influencer.slug}","dialogue":"台词","shot_description":"分镜描述","duration":8}]`
+    script = await callGeminiJson<RemixClip[]>({
+      systemPrompt: `You are ${influencer.name}, ${influencer.tagline}.`,
+      userPrompt,
+    })
   } catch {
     script = [{ index: 0, speaker: influencer.slug, dialogue: `来看这个视频，我来解读一下。`, shot_description: '网红正面出镜', duration: 10 }]
   }
 
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'remix', status: 'generating', language: lang || 'zh',
-    title: `二创: ${videoTitle || videoUrl.slice(0, 40)}`,
+    title: lang === 'en' ? `Remix: ${videoTitle || videoUrl.slice(0, 40)}` : `二创: ${videoTitle || videoUrl.slice(0, 40)}`,
     platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [influencerId], script, credit_cost: CREDIT_COSTS.remix,
   }).select().single()

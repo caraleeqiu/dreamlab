@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import type { Language } from '@/types'
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -12,6 +13,7 @@ export async function deductCredits(
   userId: string,
   amount: number,
   reason: string,
+  lang: Language = 'zh',
 ): Promise<NextResponse | null> {
   const { error } = await service.rpc('deduct_credits', {
     p_user_id: userId,
@@ -19,7 +21,10 @@ export async function deductCredits(
     p_reason: reason,
   })
   if (error?.message?.includes('insufficient_credits')) {
-    return NextResponse.json({ error: `积分不足（需要 ${amount} 积分）` }, { status: 402 })
+    const msg = lang === 'en'
+      ? `Insufficient credits (need ${amount})`
+      : `积分不足（需要 ${amount} 积分）`
+    return NextResponse.json({ error: msg }, { status: 402 })
   }
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -59,7 +64,7 @@ export async function failClipAndCheckJob(
     .from('jobs')
     .update({
       status: allDone ? 'stitching' : 'failed',
-      error_msg: allDone ? undefined : '部分切片提交失败',
+      error_msg: allDone ? undefined : 'clip submission failed',
     })
     .eq('id', jobId)
 

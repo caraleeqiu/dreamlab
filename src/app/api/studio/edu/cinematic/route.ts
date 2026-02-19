@@ -24,13 +24,14 @@ export async function POST(req: NextRequest) {
   const service = await createServiceClient()
   const creditError = await deductCredits(
     service, user.id, CREDIT_COSTS.edu_cinematic,
-    `全动画科普: ${content.title || content.summary?.slice(0, 30)}`,
+    `edu_cinematic: ${content.title || content.summary?.slice(0, 30)}`,
+    lang || 'zh',
   )
   if (creditError) return creditError
 
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'edu', status: 'generating', language: lang || 'zh',
-    title: `全动画: ${content.title}`,
+    title: lang === 'en' ? `Cinematic: ${content.title}` : `全动画: ${content.title}`,
     platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [], script,
     credit_cost: CREDIT_COSTS.edu_cinematic,

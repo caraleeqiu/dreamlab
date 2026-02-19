@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/sidebar'
 import AppHeader from '@/components/layout/app-header'
@@ -17,6 +18,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .single()
 
   const lang = (profile?.language ?? 'zh') as Language
+
+  // Sync language to cookie so root layout can set <html lang>
+  const cookieStore = await cookies()
+  cookieStore.set('dreamlab-lang', lang, { path: '/', maxAge: 60 * 60 * 24 * 365 })
 
   return (
     <LanguageProvider lang={lang}>

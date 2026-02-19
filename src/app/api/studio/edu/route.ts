@@ -21,12 +21,12 @@ export async function POST(req: NextRequest) {
   if (!influencer) return apiError('Influencer not found', 404)
 
   const service = await createServiceClient()
-  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.edu, `网红科普: ${topic}`)
+  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.edu, `edu: ${topic}`, lang || 'zh')
   if (creditError) return creditError
 
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'edu', status: 'generating', language: lang || 'zh',
-    title: `科普: ${topic}`, platform, aspect_ratio: aspectRatio || '9:16',
+    title: lang === 'en' ? `Science: ${topic}` : `科普: ${topic}`, platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [influencerId], duration_s: durationS, script, credit_cost: CREDIT_COSTS.edu,
   }).select().single()
   if (jobErr) return apiError(jobErr.message, 500)

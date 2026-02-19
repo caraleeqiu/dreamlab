@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   if (!influencer) return apiError('Influencer not found', 404)
 
   const service = await createServiceClient()
-  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.anime, `动漫营销: ${brandName} ${productName}`)
+  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.anime, `anime: ${brandName} ${productName}`, lang || 'zh')
   if (creditError) return creditError
 
   const frontalKey = influencer.frontal_image_url?.split('/dreamlab-assets/')[1]
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'anime', status: 'generating', language: lang || 'zh',
-    title: `动漫营销: ${brandName} × ${influencer.name}`, platform, aspect_ratio: aspectRatio || '9:16',
+    title: lang === 'en' ? `Anime: ${brandName} × ${influencer.name}` : `动漫营销: ${brandName} × ${influencer.name}`, platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [influencerId], script, credit_cost: CREDIT_COSTS.anime,
   }).select().single()
   if (jobErr) return apiError(jobErr.message, 500)
