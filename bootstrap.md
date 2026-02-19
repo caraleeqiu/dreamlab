@@ -71,7 +71,9 @@ source dev.sh  # 重启 dev server
 | 🟢 | 动漫营销视频 wizard v2（产品识别+6步流程） | ✅ 完成 |
 | 🟢 | stitchVideo 用 ffmpeg-static（npm 内置，Railway 无需安装 ffmpeg/Python） | ✅ 完成 |
 | 🟢 | credits 页完整双语 | ✅ 完成 |
+| 🟢 | Kling 3.0 multi-shot 升级（sound:on, element_list, groupClips） | ✅ 完成 |
 | 🔴 | ngrok 端到端测试（Kling webhook 回调验证） | 待测试 |
+| 🟡 | Kling 自定义声线（Gemini TTS → 上传 Kling → kling_voice_id） | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
 | 🟡 | Railway 部署 | 待做 |
 | ⬜ | JINA_API_KEY 申请（免费，不填也能跑） | 可选 |
@@ -92,9 +94,26 @@ source dev.sh  # 重启 dev server
 ## 🏗️ 视频生成链路
 
 ```
-wizard → POST /api/studio/[type] → 扣积分 → 创建 job → 并发提交 Kling
+wizard → POST /api/studio/[type] → 扣积分 → 创建 job → 提交 Kling
 → Kling webhook 回调 /api/webhooks/kling → 更新 clip 状态 → 全部完成后 stitch
 ```
+
+### Kling API 3.0 关键参数（2026.2）
+
+| 参数 | 说明 |
+|------|------|
+| `multi_shot: true` | 多镜头模式（boolean，不是字符串） |
+| `shot_type: "intelligence"` | 模型自动切镜，只需 1 个 prompt |
+| `shot_type: "customize"` | 手动定义每镜，需 multi_prompt 数组 |
+| `sound: "on"` | 开启音频生成（替代旧版 generate_audio: true） |
+| `element_list` | 主体控制（角色图片绑定），不是旧版 `elements[]` |
+| `voice_list` | 声线绑定（voice_id 为 string，需视频创建的主体） |
+| `duration` | string 类型，枚举 "3"~"15" |
+
+**分组策略（anime/story）：**
+- 每组 ≤ 6 个 shot 且总时长 ≤ 15s
+- 单 clip 组 → intelligence 模式
+- 多 clip 组 → customize 模式 + multi_prompt
 
 ---
 
