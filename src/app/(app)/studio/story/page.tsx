@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import StoryWizard from './story-wizard'
+import StoryPageClient from './story-page-client'
 import type { Language } from '@/types'
 
 export default async function StoryPage() {
@@ -11,7 +11,7 @@ export default async function StoryPage() {
   ])
 
   return (
-    <StoryWizard
+    <StoryPageClient
       lang={(profileRes.data?.language ?? 'zh') as Language}
       credits={profileRes.data?.credits ?? 0}
       influencers={influencersRes.data ?? []}
