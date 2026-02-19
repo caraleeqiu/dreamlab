@@ -80,7 +80,10 @@ create table public.jobs (
   credit_cost     integer not null default 0,
   error_msg       text,
   created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
+  updated_at      timestamptz not null default now(),
+  series_name     text,                       -- 系列名称（可空）
+  episode_number  integer,                    -- 集数（可空）
+  cliffhanger     text                        -- 本集结尾悬念（AI自动提取，可空）
 );
 alter table public.jobs enable row level security;
 create policy "users view own jobs" on public.jobs

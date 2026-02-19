@@ -49,8 +49,32 @@ export async function POST(req: NextRequest) {
   const styleDesc    = STYLE_PROMPT[narrativeStyle] || '电影感叙事'
   const hookDesc     = HOOK_PROMPT[hookType] || HOOK_PROMPT['midaction']
   const subGenreDesc = SUBGENRE_PROMPT[subGenre] || ''
-  const seriesDesc   = seriesMode && seriesName
-    ? `【系列剧指令】本集是《${seriesName}》第${episodeNumber}集。${episodeNumber > 1 ? `前${episodeNumber - 1}集已铺垫悬念，本集前10秒必须解答上集悬念。` : '这是系列第一集，重点建立核心谜题。'}最后一幕必须以比本集更大的悬念结束，为下一集制造强烈期待，不得给出任何解答。`
+  // Fetch previous episode cliffhanger if series mode
+  let prevCliffhanger = ''
+  if (seriesMode && seriesName && episodeNumber > 1) {
+    const { data: prevJob } = await supabase
+      .from('jobs')
+      .select('cliffhanger, script')
+      .eq('user_id', user.id)
+      .eq('series_name', seriesName)
+      .eq('episode_number', episodeNumber - 1)
+      .single()
+    if (prevJob?.cliffhanger) {
+      prevCliffhanger = prevJob.cliffhanger
+    } else if (prevJob?.script && Array.isArray(prevJob.script)) {
+      // Fallback: use last clip's dialogue as cliffhanger hint
+      const lastClip = prevJob.script[prevJob.script.length - 1] as { dialogue?: string }
+      prevCliffhanger = lastClip?.dialogue || ''
+    }
+  }
+
+  const seriesDesc = seriesMode && seriesName
+    ? `【系列剧指令】本集是《${seriesName}》第${episodeNumber}集。${
+        episodeNumber > 1 && prevCliffhanger
+          ? `上集悬念：「${prevCliffhanger}」——本集前10秒必须以令人满足的方式解答这个悬念。`
+          : episodeNumber > 1 ? '前几集已铺垫悬念，本集前10秒必须解答上集悬念。'
+          : '这是系列第一集，重点建立核心谜题。'
+      }最后一幕必须以比本集更大的悬念结束，不得给出任何解答。`
     : ''
 
   const clipCount = Math.max(3, Math.min(8, Math.ceil(durationS / 15)))
@@ -114,8 +138,10 @@ ${hookDesc}
     )
     const data = await res.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
-    const script = JSON.parse(text)
-    return NextResponse.json({ script })
+    const scriptArr = JSON.parse(text) as Array<{dialogue?: string; shot_description?: string}>
+    const lastClip = scriptArr[scriptArr.length - 1]
+    const cliffhanger = lastClip?.dialogue || lastClip?.shot_description || ''
+    return NextResponse.json({ script: scriptArr, cliffhanger })
   } catch (e: unknown) {
     console.error('Story script error:', e)
     return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })

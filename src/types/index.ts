@@ -20,6 +20,9 @@ export interface Influencer {
   forbidden?: string
   voice_prompt: string
   frontal_image_url?: string
+  // Kling 3.0 Subject Library — populated after createSubject() is called
+  kling_element_id?: string
+  kling_element_voice_id?: string
   created_at: string
 }
 
@@ -40,6 +43,9 @@ export interface Job {
   error_msg?: string
   created_at: string
   updated_at: string
+  series_name?: string
+  episode_number?: number
+  cliffhanger?: string
 }
 
 export interface ScriptClip {

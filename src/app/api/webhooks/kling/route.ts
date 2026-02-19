@@ -85,7 +85,113 @@ async function checkAndUpdateJobStatus(service: Awaited<ReturnType<typeof create
   }
 }
 
+// ─── ffmpeg helpers ──────────────────────────────────────────────────────────
+
+function runFfmpeg(cmd: ReturnType<typeof ffmpeg>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    cmd.on('end', () => resolve()).on('error', (err: Error) => reject(err)).run()
+  })
+}
+
+/**
+ * Compose a PiP clip: diagram image as full-screen background + character clip
+ * in the bottom-right corner. Burns subtitle text from the dialogue.
+ *
+ * Layout (9:16 video at 1080×1920):
+ *   - Background: diagram image scaled to fill the frame
+ *   - PiP: character clip at 25% width, bottom-right, 16px margin
+ *   - Subtitle: dialogue text at bottom, white with shadow
+ */
+async function composePipClip(opts: {
+  characterVideoPath: string
+  diagramImagePath: string | null
+  outputPath: string
+  dialogue: string
+  aspectRatio: string
+}): Promise<void> {
+  const { characterVideoPath, diagramImagePath, outputPath, dialogue, aspectRatio } = opts
+
+  // Determine output dimensions
+  const [wStr, hStr] = aspectRatio.split(':')
+  const baseW = 1080
+  const baseH = Math.round(baseW * parseInt(hStr) / parseInt(wStr))
+  const pipW = Math.round(baseW * 0.28)       // PiP at 28% of width
+  const pipX = baseW - pipW - 20              // right margin 20px
+  const pipY = baseH - Math.round(pipW * parseInt(hStr) / parseInt(wStr)) - 100  // above subtitle bar
+
+  // Escape dialogue for ffmpeg drawtext (single quotes → escaped)
+  const safeDialogue = dialogue
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+
+  if (diagramImagePath) {
+    // Full PiP: diagram bg + character overlay + subtitle
+    const filterComplex = [
+      // Scale diagram to fill frame
+      `[0:v]scale=${baseW}:${baseH},setsar=1[bg]`,
+      // Scale character video into PiP size, rounded box
+      `[1:v]scale=${pipW}:-2[pip]`,
+      // Overlay PiP on background
+      `[bg][pip]overlay=${pipX}:${pipY}[composed]`,
+      // Burn subtitle at bottom
+      `[composed]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:` +
+        `text='${safeDialogue}':fontcolor=white:fontsize=32:` +
+        `borderw=2:bordercolor=black:` +
+        `x=(w-text_w)/2:y=h-80[out]`,
+    ].join(';')
+
+    await runFfmpeg(
+      ffmpeg()
+        .input(diagramImagePath)           // [0] diagram image (loop to video duration)
+        .inputOptions(['-loop', '1'])
+        .input(characterVideoPath)          // [1] character clip
+        .complexFilter(filterComplex, 'out')
+        .outputOptions([
+          '-map', '[out]',
+          '-map', '1:a?',                  // keep audio from character clip if present
+          '-c:v', 'libx264',
+          '-crf', '23',
+          '-preset', 'fast',
+          '-c:a', 'aac',
+          '-shortest',
+        ])
+        .output(outputPath),
+    )
+  } else {
+    // No diagram: just burn subtitle on character clip
+    const filterComplex = [
+      `[0:v]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:` +
+        `text='${safeDialogue}':fontcolor=white:fontsize=32:` +
+        `borderw=2:bordercolor=black:` +
+        `x=(w-text_w)/2:y=h-80[out]`,
+    ].join(';')
+
+    await runFfmpeg(
+      ffmpeg()
+        .input(characterVideoPath)
+        .complexFilter(filterComplex, 'out')
+        .outputOptions([
+          '-map', '[out]',
+          '-map', '0:a?',
+          '-c:v', 'libx264',
+          '-crf', '23',
+          '-preset', 'fast',
+          '-c:a', 'aac',
+        ])
+        .output(outputPath),
+    )
+  }
+}
+
 async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClient>>, jobId: number) {
+  // Load job metadata to detect sub_type and diagram_urls
+  const { data: job } = await service
+    .from('jobs')
+    .select('metadata, script')
+    .eq('id', jobId)
+    .single()
+
   const { data: clips } = await service
     .from('clips')
     .select('lipsync_url, clip_index')
@@ -97,8 +203,14 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
     return
   }
 
-  // Single clip: skip stitching
-  if (clips.length === 1) {
+  const isPaper = job?.metadata?.sub_type === 'paper'
+  const diagramUrls: string[][] = isPaper ? (job?.metadata?.diagram_urls ?? []) : []
+
+  // Extract dialogue per clip from the job script (for subtitle burning)
+  const scriptClips: Array<{ dialogue?: string; diagram_index?: number }> = job?.script ?? []
+
+  // Single clip with no PiP: skip stitching
+  if (clips.length === 1 && !isPaper) {
     await service.from('jobs').update({
       status: 'done',
       final_video_url: clips[0].lipsync_url,
@@ -107,7 +219,6 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
     return
   }
 
-  // Multiple clips: concatenate with ffmpeg-static (no Python required)
   const tmpDir = path.join(os.tmpdir(), `dreamlab_job_${jobId}`)
   try {
     fs.mkdirSync(tmpDir, { recursive: true })
@@ -120,26 +231,94 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
       fs.writeFileSync(path.join(tmpDir, `clip_${clip.clip_index}.mp4`), buf)
     }
 
-    // Build ffmpeg concat list file
-    const listPath = path.join(tmpDir, 'concat.txt')
-    const listContent = clips
-      .map(c => `file '${path.join(tmpDir, `clip_${c.clip_index}.mp4`)}'`)
-      .join('\n')
-    fs.writeFileSync(listPath, listContent)
+    let processedPaths: string[]
 
+    if (isPaper) {
+      // Paper mode: compose PiP for each clip (diagram bg + character pip + subtitle)
+      processedPaths = await Promise.all(
+        clips.map(async clip => {
+          const scriptClip = scriptClips[clip.clip_index] ?? {}
+          const diagIdx = scriptClip.diagram_index ?? clip.clip_index
+          const diagUrlList = diagramUrls[diagIdx] ?? []
+          const diagImgUrl = diagUrlList[0] ?? null
+
+          // Download diagram image if available
+          let diagImgPath: string | null = null
+          if (diagImgUrl) {
+            try {
+              const imgRes = await fetch(diagImgUrl)
+              if (imgRes.ok) {
+                const imgBuf = Buffer.from(await imgRes.arrayBuffer())
+                diagImgPath = path.join(tmpDir, `diag_${clip.clip_index}.jpg`)
+                fs.writeFileSync(diagImgPath, imgBuf)
+              }
+            } catch {
+              // Non-fatal: continue without diagram
+            }
+          }
+
+          const characterPath = path.join(tmpDir, `clip_${clip.clip_index}.mp4`)
+          const composedPath = path.join(tmpDir, `composed_${clip.clip_index}.mp4`)
+
+          await composePipClip({
+            characterVideoPath: characterPath,
+            diagramImagePath: diagImgPath,
+            outputPath: composedPath,
+            dialogue: scriptClip.dialogue ?? '',
+            aspectRatio: '9:16',
+          })
+
+          return composedPath
+        }),
+      )
+    } else {
+      // Regular mode: burn subtitles only (no PiP)
+      processedPaths = await Promise.all(
+        clips.map(async clip => {
+          const scriptClip = scriptClips[clip.clip_index] ?? {}
+          const dialogue = scriptClip.dialogue ?? ''
+
+          if (!dialogue) {
+            // No subtitle: use raw clip as-is
+            return path.join(tmpDir, `clip_${clip.clip_index}.mp4`)
+          }
+
+          const inputPath = path.join(tmpDir, `clip_${clip.clip_index}.mp4`)
+          const outputPath = path.join(tmpDir, `sub_${clip.clip_index}.mp4`)
+
+          await composePipClip({
+            characterVideoPath: inputPath,
+            diagramImagePath: null,
+            outputPath,
+            dialogue,
+            aspectRatio: '9:16',
+          })
+
+          return outputPath
+        }),
+      )
+    }
+
+    // Concat all processed clips
     const finalPath = path.join(tmpDir, 'final.mp4')
 
-    // Run ffmpeg concat (stream copy — no re-encode, very fast)
-    await new Promise<void>((resolve, reject) => {
-      ffmpeg()
-        .input(listPath)
-        .inputOptions(['-f', 'concat', '-safe', '0'])
-        .outputOptions(['-c', 'copy'])
-        .output(finalPath)
-        .on('end', () => resolve())
-        .on('error', (err: Error) => reject(err))
-        .run()
-    })
+    if (processedPaths.length === 1) {
+      // Single processed clip: no concat needed
+      fs.copyFileSync(processedPaths[0], finalPath)
+    } else {
+      // Build concat list from processed (re-encoded) clips
+      const listPath = path.join(tmpDir, 'concat.txt')
+      const listContent = processedPaths.map(p => `file '${p}'`).join('\n')
+      fs.writeFileSync(listPath, listContent)
+
+      await runFfmpeg(
+        ffmpeg()
+          .input(listPath)
+          .inputOptions(['-f', 'concat', '-safe', '0'])
+          .outputOptions(['-c', 'copy'])
+          .output(finalPath),
+      )
+    }
 
     // Upload stitched video to R2
     const finalBuf = fs.readFileSync(finalPath)
@@ -154,7 +333,6 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
 
   } catch (err) {
     logger.error('stitch failed, falling back to first clip', { jobId, err: String(err) })
-    // Fallback: mark done with first clip so users can still download individually
     await service.from('jobs').update({
       status: 'done',
       final_video_url: clips[0].lipsync_url,

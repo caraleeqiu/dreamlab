@@ -54,15 +54,15 @@ async function klingFetch(path: string, options: RequestInit = {}) {
 }
 
 // Build prompt for a single podcast clip (used in per-clip fallback)
+//
+// element_id (Kling 3.0 Subject Library) is preferred when available.
+// Falls back to frontal_image_url for influencers not yet registered in the Subject Library.
 export function buildClipPrompt(
   clip: ScriptClip,
   influencer: Influencer,
   firstFrameUrl: string,
   frontalImageUrl: string,
 ) {
-  // Compose camera directive from structured fields when available
-  // Format: [shot_type, camera_movement] prepended to shot_description
-  // Example: "[特写, 慢推] Close-up, slow dolly in, host facing camera..."
   const cameraTag = [clip.shot_type, clip.camera_movement].filter(Boolean).join(', ')
   const visualDirective = cameraTag
     ? `[${cameraTag}] ${clip.shot_description}`
@@ -74,6 +74,10 @@ export function buildClipPrompt(
     `Voice style: ${influencer.voice_prompt}`,
   ].join('. ')
 
+  const elementEntry = influencer.kling_element_id
+    ? { element_id: influencer.kling_element_id }
+    : { frontal_image_url: frontalImageUrl }
+
   return {
     model_name: 'kling-v3',
     prompt,
@@ -81,7 +85,7 @@ export function buildClipPrompt(
     duration: String(clip.duration),
     aspect_ratio: '9:16',
     mode: 'pro' as const,
-    element_list: [{ frontal_image_url: frontalImageUrl }],
+    element_list: [elementEntry],
     sound: 'on',
   }
 }
@@ -171,6 +175,48 @@ export async function submitSimpleVideo(params: {
   })
 }
 
+/**
+ * Pure text-to-video (no reference image) — for fully animated scenes.
+ * Uses Kling's text2video endpoint.
+ */
+export async function submitText2Video(params: {
+  prompt: string
+  totalDuration: number
+  shots?: Array<{ index: number; prompt: string; duration: number }>
+  shotType?: 'intelligence' | 'customize'
+  aspectRatio?: string
+  renderMode?: 'pro' | 'std'
+  callbackUrl?: string
+}) {
+  const shotType = params.shotType ?? (params.shots?.length ? 'customize' : 'intelligence')
+
+  const body: Record<string, unknown> = {
+    model_name: 'kling-v3',
+    mode: params.renderMode ?? 'pro',
+    multi_shot: true,
+    shot_type: shotType,
+    duration: String(Math.min(params.totalDuration, 15)),
+    aspect_ratio: params.aspectRatio ?? '9:16',
+  }
+
+  if (shotType === 'customize' && params.shots?.length) {
+    body.multi_prompt = params.shots.map(s => ({
+      index: s.index,
+      prompt: s.prompt,
+      duration: String(s.duration),
+    }))
+  } else {
+    body.prompt = params.prompt ?? ''
+  }
+
+  if (params.callbackUrl) body.callback_url = params.callbackUrl
+
+  return klingFetch('/v1/videos/text2video', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function submitLipSync(videoUrl: string, audioUrl: string, callbackUrl?: string) {
   return klingFetch('/v1/videos/lip-sync', {
     method: 'POST',
@@ -183,5 +229,88 @@ export async function submitLipSync(videoUrl: string, audioUrl: string, callback
       },
       ...(callbackUrl && { callback_url: callbackUrl }),
     }),
+  })
+}
+
+// ── Kling 3.0 Subject Library ─────────────────────────────────────────────────
+//
+// Register an influencer as a Kling "Advanced Custom Element" (subject).
+// Returns element_id which replaces frontal_image_url in element_list.
+// Store element_id in influencers.kling_element_id after first registration.
+//
+// imageUrls: up to 6 front-facing photos (presigned R2 URLs)
+// videoUrl:  optional short reference video (3–10 s)
+export async function createSubject(params: {
+  name: string
+  imageUrls: string[]
+  videoUrl?: string
+}): Promise<{ element_id: string; voice_id?: string } | null> {
+  const body: Record<string, unknown> = {
+    name: params.name,
+    image_list: params.imageUrls.map(url => ({ url })),
+  }
+  if (params.videoUrl) body.video_url = params.videoUrl
+
+  const resp = await klingFetch('/v1/general/advanced-custom-elements', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+  if (resp?.code !== 0 || !resp?.data?.element_id) return null
+  return {
+    element_id: resp.data.element_id as string,
+    voice_id: resp.data.voice_id as string | undefined,
+  }
+}
+
+// ── Kling 3.0 Omni Video ──────────────────────────────────────────────────────
+//
+// kling-v3-omni model — supports inline voice synthesis via voice_list.
+// This avoids a separate lip-sync step: the model generates the avatar
+// speaking the dialogue in a single API call.
+//
+// elementId:  from influencer.kling_element_id (Subject Library)
+// voiceId:    from influencer.kling_element_voice_id (cloned voice)
+export async function submitOmniVideo(params: {
+  prompt: string
+  imageUrl: string
+  elementId: string
+  voiceId?: string
+  totalDuration: number
+  shots?: Array<{ index: number; prompt: string; duration: number }>
+  shotType?: 'intelligence' | 'customize'
+  aspectRatio?: string
+  callbackUrl?: string
+}) {
+  const shotType = params.shotType ?? (params.shots?.length ? 'customize' : 'intelligence')
+
+  const body: Record<string, unknown> = {
+    model_name: 'kling-v3-omni',
+    mode: 'pro',
+    image: params.imageUrl,
+    multi_shot: true,
+    shot_type: shotType,
+    duration: String(Math.min(params.totalDuration, 15)),
+    aspect_ratio: params.aspectRatio ?? '9:16',
+    element_list: [{ element_id: params.elementId }],
+    sound: 'on',
+  }
+
+  if (shotType === 'customize' && params.shots?.length) {
+    body.multi_prompt = params.shots.map(s => ({
+      index: s.index,
+      prompt: s.prompt,
+      duration: String(s.duration),
+    }))
+  } else {
+    body.prompt = params.prompt
+  }
+
+  if (params.voiceId) body.voice_list = [{ voice_id: params.voiceId }]
+  if (params.callbackUrl) body.callback_url = params.callbackUrl
+
+  return klingFetch('/v1/videos/omni-video', {
+    method: 'POST',
+    body: JSON.stringify(body),
   })
 }

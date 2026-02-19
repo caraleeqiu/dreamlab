@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { submitMultiShotVideo } from '@/lib/kling'
 import { classifyKlingResponse } from '@/lib/video-router'
+import { groupClips } from '@/lib/video-utils'
 import { getPresignedUrl } from '@/lib/r2'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const { storyTitle, storyIdea, genre, narrativeStyle, subGenre, seriesMode, seriesName, episodeNumber, influencerIds, platform, aspectRatio, durationS, script, lang } = await req.json()
+  const { storyTitle, storyIdea, genre, narrativeStyle, subGenre, seriesMode, seriesName, episodeNumber, influencerIds, platform, aspectRatio, durationS, script, lang, castRoles, cliffhanger } = await req.json()
   if (!influencerIds?.length || !platform || !script) {
     return apiError('Missing required fields', 400)
   }
@@ -49,61 +50,108 @@ export async function POST(req: NextRequest) {
   if (creditError) return creditError
 
   const title = storyTitle || `故事: ${storyIdea.slice(0, 20)}...`
+
+  const clips = script as ScriptClip[]
+  const lastClip = clips[clips.length - 1]
+  const derivedCliffhanger = cliffhanger || lastClip?.dialogue || lastClip?.shot_description || ''
+
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'story', status: 'generating', language: lang || 'zh',
     title, platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: influencerIds, duration_s: durationS, script, credit_cost: CREDIT_COSTS.story,
+    series_name: seriesMode ? (seriesName || null) : null,
+    episode_number: seriesMode ? (episodeNumber || null) : null,
+    cliffhanger: derivedCliffhanger,
   }).select().single()
   if (jobErr) return apiError(jobErr.message, 500)
 
-  const clips = script as ScriptClip[]
   const infMap = Object.fromEntries((influencers as Influencer[]).map(inf => [inf.slug, inf]))
   const primaryInf = influencers[0] as Influencer
   const styleVisual    = NARRATIVE_VISUAL[narrativeStyle] || 'cinematic style'
   const subGenreVisual = SUBGENRE_VISUAL[subGenre] || ''
-  const totalDuration  = clips.reduce((sum, c) => sum + (c.duration || 5), 0)
   const seriesTag      = seriesMode && seriesName ? `Series: "${seriesName}" Episode ${episodeNumber}.` : ''
-
-  const shotDescriptions = clips.map((c, i) => {
-    const actor = infMap[c.speaker] || primaryInf
-    const dialogue = c.dialogue ? ` ${actor.name} says: "${c.dialogue}"` : ''
-    const bgmNote  = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
-    return `Scene ${i + 1}: ${c.shot_description}.${dialogue}${bgmNote}`
-  }).join('. ')
-  const combinedPrompt = [
-    `${primaryInf.name} (${primaryInf.tagline}), ${styleVisual}, ${genre} short film.`,
-    subGenreVisual,
-    seriesTag,
-    `Voice: ${primaryInf.voice_prompt}.`,
-    shotDescriptions,
-    `Vertical format 9:16, cinematic quality, mystery atmosphere.`,
-  ].filter(Boolean).join(' ')
-
-  const { data: clipRows } = await service.from('clips').insert([{
-    job_id: job.id, clip_index: 0, status: 'pending', prompt: combinedPrompt,
-  }]).select()
 
   const frontalKey = primaryInf.frontal_image_url?.split('/dreamlab-assets/')[1]
   const imageUrl = frontalKey
     ? await getPresignedUrl(frontalKey)
     : primaryInf.frontal_image_url || ''
 
-  const resp = await submitMultiShotVideo({
-    imageUrl,
-    prompt: combinedPrompt,
-    shotType: 'intelligence',
-    totalDuration,
-    aspectRatio: aspectRatio || '9:16',
-    callbackUrl: getCallbackUrl(),
-  })
+  const callbackUrl = getCallbackUrl()
+  const groups = groupClips(clips)
 
-  const result = classifyKlingResponse(resp)
-  if (result.taskId) {
-    await service.from('clips').update({ status: 'submitted', kling_task_id: result.taskId })
-      .eq('job_id', job.id).eq('clip_index', 0)
-  } else {
-    await failClipAndCheckJob(service, job.id, 0, result.error ?? 'Submit failed')
-  }
+  // Insert one clip record per group
+  const clipInserts = groups.map((_, gi) => ({
+    job_id: job.id, clip_index: gi, status: 'pending', prompt: '',
+  }))
+  await service.from('clips').insert(clipInserts)
+
+  // Build style prefix for prompts
+  const stylePrefix = [
+    `${primaryInf.name} (${primaryInf.tagline}), ${styleVisual}, ${genre} short film.`,
+    subGenreVisual,
+    seriesTag,
+    `Voice: ${primaryInf.voice_prompt}.`,
+  ].filter(Boolean).join(' ')
+
+  await Promise.allSettled(groups.map(async (group, gi) => {
+    const groupDuration = Math.min(group.reduce((s, c) => s + (c.duration || 5), 0), 15)
+
+    let resp
+    if (group.length === 1) {
+      const c = group[0]
+      const actor = infMap[c.speaker] || primaryInf
+      const rolePart = castRoles?.[actor.id] ? ` as ${castRoles[actor.id]}` : ''
+      const bgmNote = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
+      const prompt = [
+        stylePrefix,
+        `Scene: ${c.shot_description}.`,
+        c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
+        bgmNote,
+        'Vertical format 9:16, cinematic quality, mystery atmosphere.',
+      ].filter(Boolean).join(' ')
+
+      resp = await submitMultiShotVideo({
+        imageUrl,
+        prompt,
+        shotType: 'intelligence',
+        totalDuration: groupDuration,
+        aspectRatio: aspectRatio || '9:16',
+        callbackUrl,
+      })
+    } else {
+      resp = await submitMultiShotVideo({
+        imageUrl,
+        shots: group.map((c, si) => {
+          const actor = infMap[c.speaker] || primaryInf
+          const rolePart = castRoles?.[actor.id] ? ` as ${castRoles[actor.id]}` : ''
+          const bgmNote = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
+          return {
+            index: si + 1,
+            prompt: [
+              `${stylePrefix} Shot ${si + 1}:`,
+              c.shot_description,
+              c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
+              bgmNote,
+            ].filter(Boolean).join(' '),
+            duration: c.duration || 5,
+          }
+        }),
+        shotType: 'customize',
+        totalDuration: groupDuration,
+        aspectRatio: aspectRatio || '9:16',
+        callbackUrl,
+      })
+    }
+
+    const result = classifyKlingResponse(resp)
+    if (result.taskId) {
+      await service.from('clips')
+        .update({ status: 'submitted', kling_task_id: result.taskId })
+        .eq('job_id', job.id).eq('clip_index', gi)
+    } else {
+      await failClipAndCheckJob(service, job.id, gi, result.error ?? 'Submit failed')
+    }
+  }))
 
   return NextResponse.json({ jobId: job.id })
 }

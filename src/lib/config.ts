@@ -5,6 +5,7 @@ export const CREDIT_COSTS = {
   edu:                      15,
   edu_talk:                 15,
   edu_animated:             30,
+  edu_paper:                40,
   anime:                    50,
   story:                    30,
   remix:                     5,
