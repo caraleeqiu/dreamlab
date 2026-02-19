@@ -9,7 +9,7 @@ export const CREDIT_COSTS = {
   edu_cinematic:            20,
   anime:                    50,
   story:                    30,
-  remix:                     5,
+  remix:                    20,
   link:                     15,
   create_influencer:        10,
   generate_influencer_image: 3,

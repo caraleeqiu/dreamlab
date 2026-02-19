@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy, RefreshCw, Pencil, Volume2, VolumeX } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy, RefreshCw, Pencil, Volume2, VolumeX, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import VideoPlayerWithSubtitles from '@/components/VideoPlayerWithSubtitles'
 import type { Job, Clip } from '@/types'
@@ -31,6 +31,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [editPrompt, setEditPrompt] = useState('')
   const [keepSound, setKeepSound] = useState(true)
   const [editSubmitting, setEditSubmitting] = useState(false)
+  // Single-clip regeneration via splice API
+  const [regenClipId, setRegenClipId] = useState<number | null>(null)
+  const [regenPrompt, setRegenPrompt] = useState('')
+  const [regenSubmitting, setRegenSubmitting] = useState(false)
+  const [regenError, setRegenError] = useState('')
 
   async function generatePublishKit() {
     if (!job) return
@@ -52,6 +57,37 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     navigator.clipboard.writeText(text)
     setCopied(key)
     setTimeout(() => setCopied(''), 2000)
+  }
+
+  async function submitClipRegen(clipId: number, clipIndex: number) {
+    if (!regenPrompt.trim() || !job) return
+    setRegenSubmitting(true)
+    setRegenError('')
+    // Estimate time range from clip index × 15s (approximate)
+    const startS = clipIndex * 15
+    const endS = startS + 15
+    try {
+      const res = await fetch('/api/studio/remix/splice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: job.id,
+          startS,
+          endS,
+          replacementType: 'ai-generate',
+          prompt: regenPrompt,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || (lang === 'zh' ? '提交失败' : 'Submit failed'))
+      setRegenClipId(null)
+      setRegenPrompt('')
+      router.push(`/jobs/${data.jobId}`)
+    } catch (err: unknown) {
+      setRegenError(err instanceof Error ? err.message : (lang === 'zh' ? '提交失败' : 'Submit failed'))
+    } finally {
+      setRegenSubmitting(false)
+    }
   }
 
   async function submitClipEdit(clipId: number) {
@@ -293,21 +329,75 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                         className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors">
                         <Download size={11} /> {t(lang, UI.jobs.downloadClip)} {clip.clip_index + 1}
                       </a>
-                      <button
-                        onClick={() => {
-                          if (editingClipId === clip.id) {
-                            setEditingClipId(null)
-                          } else {
-                            setEditingClipId(clip.id)
-                            setEditPrompt('')
-                          }
-                        }}
-                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-violet-400 transition-colors"
-                      >
-                        <Pencil size={11} />
-                        {lang === 'zh' ? '编辑' : 'Edit'}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            if (regenClipId === clip.id) {
+                              setRegenClipId(null)
+                            } else {
+                              setRegenClipId(clip.id)
+                              setEditingClipId(null)
+                              setRegenPrompt('')
+                              setRegenError('')
+                            }
+                          }}
+                          className="flex items-center gap-1 text-xs text-zinc-500 hover:text-cyan-400 transition-colors"
+                        >
+                          <RotateCcw size={11} />
+                          {lang === 'zh' ? '重生成' : 'Regen'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (editingClipId === clip.id) {
+                              setEditingClipId(null)
+                            } else {
+                              setEditingClipId(clip.id)
+                              setRegenClipId(null)
+                              setEditPrompt('')
+                            }
+                          }}
+                          className="flex items-center gap-1 text-xs text-zinc-500 hover:text-violet-400 transition-colors"
+                        >
+                          <Pencil size={11} />
+                          {lang === 'zh' ? '编辑' : 'Edit'}
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Inline regen panel */}
+                    {regenClipId === clip.id && (
+                      <div className="mt-1 p-3 rounded-lg bg-zinc-800/80 border border-cyan-900/50 space-y-2">
+                        <p className="text-xs text-cyan-400">
+                          {lang === 'zh' ? '用 AI 重新生成这一幕（将替换原视频片段）' : 'Regenerate this clip with AI (replaces the original segment)'}
+                        </p>
+                        <textarea
+                          rows={2}
+                          placeholder={lang === 'zh'
+                            ? '描述新画面，例如：换成室外咖啡馆场景，阳光从左侧照进来...'
+                            : 'Describe the new scene, e.g. outdoor café, sunlight from the left...'}
+                          value={regenPrompt}
+                          onChange={e => setRegenPrompt(e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-2.5 py-1.5 text-white placeholder:text-zinc-600 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        />
+                        {regenError && <p className="text-xs text-red-400">{regenError}</p>}
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => setRegenClipId(null)}
+                            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                            {lang === 'zh' ? '取消' : 'Cancel'}
+                          </button>
+                          <Button
+                            size="sm"
+                            onClick={() => submitClipRegen(clip.id, clip.clip_index)}
+                            disabled={regenSubmitting || !regenPrompt.trim()}
+                            className="h-6 px-3 text-xs bg-cyan-600 hover:bg-cyan-700 text-white"
+                          >
+                            {regenSubmitting
+                              ? <Loader2 size={11} className="animate-spin" />
+                              : (lang === 'zh' ? '提交重生成' : 'Regenerate')}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Inline edit panel */}
                     {editingClipId === clip.id && (

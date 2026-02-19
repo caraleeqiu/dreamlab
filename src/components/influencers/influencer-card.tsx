@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Pencil, Trash2, Play, Volume2, Mic } from 'lucide-react'
+import { Pencil, Trash2, Play, Volume2, Mic, Zap, CheckCircle2, Loader2 } from 'lucide-react'
 import type { Influencer } from '@/types'
 import { useLanguage } from '@/context/language-context'
 
@@ -38,9 +38,29 @@ interface Props {
 export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) {
   const [playing, setPlaying] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
+  const [registering, setRegistering] = useState(false)
+  const [registered, setRegistered] = useState(!!influencer.kling_element_id)
+  const [regError, setRegError] = useState('')
   const lang = useLanguage()
   const isOwn = !influencer.is_builtin
   const TYPE_LABEL = lang === 'en' ? TYPE_LABEL_EN : TYPE_LABEL_ZH
+
+  async function handleRegisterKling(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (registering || registered) return
+    setRegistering(true)
+    setRegError('')
+    try {
+      const res = await fetch(`/api/influencers/${influencer.id}/register-kling`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Registration failed')
+      setRegistered(true)
+    } catch (err: unknown) {
+      setRegError(err instanceof Error ? err.message : 'Failed')
+    } finally {
+      setRegistering(false)
+    }
+  }
 
   function handlePlay(e: React.MouseEvent) {
     e.stopPropagation()
@@ -223,9 +243,43 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
               </div>
             )}
 
+            {/* Kling Subject Library registration */}
+            <div className="pt-2 border-t border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-zinc-600 uppercase tracking-wider">
+                  {lang === 'en' ? 'Kling Subject Library' : '可灵主体库'}
+                </p>
+                {registered ? (
+                  <span className="flex items-center gap-1 text-xs text-green-400">
+                    <CheckCircle2 size={11} /> {lang === 'en' ? 'Registered' : '已注册'}
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRegisterKling}
+                    disabled={registering}
+                    className="h-6 px-2 text-xs border-violet-700 text-violet-300 hover:bg-violet-900/30"
+                  >
+                    {registering
+                      ? <><Loader2 size={10} className="animate-spin mr-1" />{lang === 'en' ? 'Registering…' : '注册中…'}</>
+                      : <><Zap size={10} className="mr-1" />{lang === 'en' ? 'Register' : '注册主体'}</>}
+                  </Button>
+                )}
+              </div>
+              {registered && (
+                <p className="text-xs text-zinc-600">
+                  {lang === 'en'
+                    ? 'Character & voice anchored across all video generations'
+                    : '角色与声线已锁定，跨批次生成保持一致性'}
+                </p>
+              )}
+              {regError && <p className="text-xs text-red-400">{regError}</p>}
+            </div>
+
             {/* 自建网红操作按钮 */}
             {isOwn && (
-              <div className="flex gap-2 pt-2 border-t border-zinc-800">
+              <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => { setShowDetail(false); onEdit?.(influencer) }}
                   className="flex-1 border-zinc-700 text-zinc-300 hover:text-white">
                   <Pencil size={13} className="mr-1.5" /> {lang === 'en' ? 'Edit' : '编辑'}

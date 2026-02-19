@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { uploadToR2 } from '@/lib/r2'
 import { createLogger } from '@/lib/logger'
+import { dominantBgm, downloadBgm } from '@/lib/bgm'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -344,8 +345,45 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
       }))
     }
 
+    const concatPath = path.join(tmpDir, 'concat.mp4')
+    await crossfadeConcat(processedPaths, concatPath, tmpDir)
+
+    // ── BGM mixing ────────────────────────────────────────────────────────────
+    // Detect dominant BGM style from script clips; mix at -18 dB under voice.
+    const scriptBgms = (job?.script as Array<{ bgm?: string }> | null ?? []).map(c => c.bgm)
+    const bgmStyle = dominantBgm(scriptBgms)
     const finalPath = path.join(tmpDir, 'final.mp4')
-    await crossfadeConcat(processedPaths, finalPath, tmpDir)
+
+    if (bgmStyle) {
+      const bgmPath = path.join(tmpDir, 'bgm.mp3')
+      const bgmOk = await downloadBgm(bgmStyle, bgmPath)
+      if (bgmOk) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            ffmpeg(concatPath)
+              .input(bgmPath)
+              .complexFilter([
+                '[0:a]volume=1.0[voice]',
+                '[1:a]volume=0.12,aloop=loop=-1:size=2e+09[bgm]',
+                '[voice][bgm]amix=inputs=2:duration=first[aout]',
+              ])
+              .outputOptions(['-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-shortest'])
+              .output(finalPath)
+              .on('end', () => resolve())
+              .on('error', (e: Error) => reject(e))
+              .run()
+          })
+          logger.info('bgm mixed', { jobId, bgmStyle })
+        } catch (bgmErr) {
+          logger.warn('bgm mix failed, using concat without bgm', { jobId, bgmErr: String(bgmErr) })
+          fs.copyFileSync(concatPath, finalPath)
+        }
+      } else {
+        fs.copyFileSync(concatPath, finalPath)
+      }
+    } else {
+      fs.copyFileSync(concatPath, finalPath)
+    }
 
     const finalUrl = await uploadToR2(`jobs/${jobId}/final.mp4`, fs.readFileSync(finalPath), 'video/mp4')
     await service.from('jobs').update({ status: 'done', final_video_url: finalUrl, updated_at: new Date().toISOString() }).eq('id', jobId)
