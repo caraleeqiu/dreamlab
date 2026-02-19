@@ -207,7 +207,7 @@ export default function EduTalkWizard({ lang, credits, influencers }: Props) {
               />
             </div>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label className="text-zinc-400">{isZh ? '文章链接 / arXiv 链接' : 'Article URL / arXiv link'}</Label>
               <Input
                 placeholder={t(lang, UI.wizard.eduUrlPH)}
@@ -215,6 +215,48 @@ export default function EduTalkWizard({ lang, credits, influencers }: Props) {
                 onChange={e => setUrlInput(e.target.value)}
                 className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
               />
+              {/* Source hints */}
+              <div className="rounded-xl border border-zinc-800 p-3 space-y-2 text-xs">
+                {isZh ? (
+                  <>
+                    <div>
+                      <p className="text-zinc-400 font-medium mb-1">✅ 支持的来源</p>
+                      <ul className="space-y-0.5 text-zinc-500">
+                        {['任意文章链接', '知乎', 'arXiv 论文', 'Wikipedia'].map(s => (
+                          <li key={s} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-zinc-600 shrink-0" />{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="border-t border-zinc-800 pt-2">
+                      <p className="text-zinc-400 font-medium mb-1">❌ 不支持的来源</p>
+                      <ul className="space-y-0.5 text-zinc-600">
+                        {['微信公众号（复制正文使用「文字输入」）', '小红书（需登录）', 'B站 / 抖音（复制文案）'].map(s => (
+                          <li key={s} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0" />{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-zinc-400 font-medium mb-1">✅ Supported</p>
+                      <ul className="space-y-0.5 text-zinc-500">
+                        {['Any article URL', 'arXiv papers', 'Wikipedia', 'Medium / Substack'].map(s => (
+                          <li key={s} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-zinc-600 shrink-0" />{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="border-t border-zinc-800 pt-2">
+                      <p className="text-zinc-400 font-medium mb-1">❌ Not supported</p>
+                      <ul className="space-y-0.5 text-zinc-600">
+                        {['WeChat (copy text → use Text input)', 'Xiaohongshu (requires login)', 'YouTube / TikTok (copy description)'].map(s => (
+                          <li key={s} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0" />{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 

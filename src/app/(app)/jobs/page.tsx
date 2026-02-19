@@ -44,8 +44,10 @@ export default function JobsPage() {
   const lang = useLanguage()
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
+  const [typeFilter, setTypeFilter] = useState('all')
 
   const dateLocale = lang === 'zh' ? zhCN : enUS
+  const filteredJobs = typeFilter === 'all' ? jobs : jobs.filter(j => j.type === typeFilter)
   const TYPE_LABEL = Object.fromEntries(
     Object.entries(UI.jobs.types).map(([k, v]) => [k, t(lang, v)])
   )
@@ -75,7 +77,7 @@ export default function JobsPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-white">
           {lang === 'zh' ? '任务管理' : 'Tasks'}
         </h1>
@@ -84,14 +86,33 @@ export default function JobsPage() {
         </p>
       </div>
 
+      {/* Type filter chips */}
+      <div className="flex gap-2 flex-wrap mb-5">
+        {[
+          { id: 'all',     label: lang === 'zh' ? '全部'  : 'All'     },
+          { id: 'podcast', label: lang === 'zh' ? '播客'  : 'Podcast' },
+          { id: 'story',   label: lang === 'zh' ? '故事'  : 'Story'   },
+          { id: 'edu',     label: lang === 'zh' ? '科普'  : 'Edu'     },
+          { id: 'link',    label: lang === 'zh' ? '链接'  : 'Link'    },
+          { id: 'anime',   label: lang === 'zh' ? '动漫'  : 'Anime'   },
+          { id: 'script',  label: lang === 'zh' ? '脚本'  : 'Script'  },
+        ].map(f => (
+          <button key={f.id} onClick={() => setTypeFilter(f.id)}
+            className={`px-3 py-1 rounded-full text-xs transition-colors
+              ${typeFilter === f.id ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2].map(i => <div key={i} className="h-28 rounded-xl bg-zinc-800 animate-pulse" />)}
         </div>
-      ) : jobs.length === 0 ? (
+      ) : filteredJobs.length === 0 ? (
         <div className="text-center py-20 text-zinc-600">
           <ListTodo size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="mb-2">{lang === 'zh' ? '没有进行中的任务' : 'No active tasks'}</p>
+          <p className="mb-2">{lang === 'zh' ? (jobs.length === 0 ? '没有进行中的任务' : '该类型暂无任务') : (jobs.length === 0 ? 'No active tasks' : 'No tasks of this type')}</p>
           <div className="flex items-center justify-center gap-4 mt-3">
             <Link href="/studio" className="text-sm text-violet-400 hover:text-violet-300 flex items-center gap-1">
               <Clapperboard size={13} />
@@ -104,7 +125,7 @@ export default function JobsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {jobs.map(job => (
+          {filteredJobs.map(job => (
             <Link key={job.id} href={`/jobs/${job.id}`}
               className="group block p-5 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-violet-800/50 transition-all">
               <div className="flex items-start justify-between gap-4">

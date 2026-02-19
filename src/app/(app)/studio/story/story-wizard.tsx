@@ -17,29 +17,30 @@ interface Props {
   lang: Language
   credits: number
   influencers: Influencer[]
+  initialPrefs?: Record<string, unknown>
 }
 
 export interface StoryWizardHandle {
   jumpToSeries: (name: string, episode: number) => void
 }
 
-const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ lang, credits, influencers }, ref) {
+const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ lang, credits, influencers, initialPrefs = {} }, ref) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('story')
   const [category, setCategory] = useState<Category>('suspense')
   const [storyTitle, setStoryTitle] = useState('')
   const [storyIdea, setStoryIdea] = useState('')
   const [genre, setGenre] = useState('suspense')
-  const [narrativeStyle, setNarrativeStyle] = useState('cinematic')
+  const [narrativeStyle, setNarrativeStyle] = useState((initialPrefs.narrativeStyle as string) ?? 'cinematic')
   const [hookType, setHookType] = useState('midaction')
   const [subGenre, setSubGenre] = useState('highway')
   const [seriesMode, setSeriesMode] = useState(false)
   const [seriesName, setSeriesName] = useState('')
   const [episodeNumber, setEpisodeNumber] = useState(1)
   const [castInfluencers, setCastInfluencers] = useState<Influencer[]>([])
-  const [platform, setPlatform] = useState('')
+  const [platform, setPlatform] = useState((initialPrefs.platform as string) ?? '')
   const [aspectRatio, setAspectRatio] = useState('9:16')
-  const [duration, setDuration] = useState(60)
+  const [duration, setDuration] = useState((initialPrefs.duration as number) ?? 60)
   const [script, setScript] = useState<ScriptClip[] | null>(null)
   const [castRoles, setCastRoles] = useState<Record<number, string>>({})
   const [cliffhanger, setCliffhanger] = useState('')
@@ -59,6 +60,14 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
 
   const platforms = PLATFORMS[lang]
   const CREDIT_COST = 30
+
+  function savePrefs() {
+    fetch('/api/user/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'story', prefs: { platform, duration, narrativeStyle } }),
+    }).catch(() => { /* silent */ })
+  }
 
   const CATEGORIES: { id: Category; label: string; emoji: string; active: boolean }[] = [
     { id: 'suspense', label: lang === 'zh' ? '悬疑'  : 'Mystery', emoji: '🔍', active: true  },
@@ -402,7 +411,7 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep('cast')} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">{t(lang, UI.wizard.prevBtn)}</Button>
-            <Button onClick={loadScript} disabled={!platform || loadingScript} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white">
+            <Button onClick={() => { savePrefs(); loadScript() }} disabled={!platform || loadingScript} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white">
               {loadingScript
                 ? <><Loader2 size={14} className="animate-spin mr-2" />{t(lang, UI.wizard.scriptLoading)}</>
                 : <>{t(lang, UI.wizard.scriptPreview)} <ArrowRight size={14} className="ml-1" /></>}

@@ -9,9 +9,10 @@ interface Props {
   lang: Language
   credits: number
   influencers: Influencer[]
+  initialPrefs?: Record<string, unknown>
 }
 
-export default function StoryPageClient({ lang, credits, influencers }: Props) {
+export default function StoryPageClient({ lang, credits, influencers, initialPrefs = {} }: Props) {
   const wizardRef = useRef<{ jumpToSeries: (name: string, episode: number) => void } | null>(null)
 
   function handleContinue(seriesName: string, nextEpisode: number) {
@@ -29,6 +30,7 @@ export default function StoryPageClient({ lang, credits, influencers }: Props) {
           lang={lang}
           credits={credits}
           influencers={influencers}
+          initialPrefs={initialPrefs}
         />
       </div>
     </>

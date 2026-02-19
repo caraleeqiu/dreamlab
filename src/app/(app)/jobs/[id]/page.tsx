@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Job, Clip } from '@/types'
 import { useLanguage } from '@/context/language-context'
@@ -151,6 +151,40 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           })}
         </div>
       </div>
+
+      {/* 失败面板 */}
+      {isFailed && (
+        <div className="mb-8 p-4 rounded-xl border border-red-800/50 bg-red-900/10 space-y-3">
+          <div className="flex items-start gap-3">
+            <XCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-red-400">
+                {lang === 'zh' ? '视频生成失败' : 'Video generation failed'}
+              </p>
+              {job.error_msg && (
+                <p className="text-xs text-red-500/70">{job.error_msg}</p>
+              )}
+              {job.credit_cost > 0 && (
+                <p className="text-xs text-zinc-400">
+                  {lang === 'zh'
+                    ? `✓ 已退还 ${job.credit_cost} 积分`
+                    : `✓ ${job.credit_cost} credits refunded`}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => router.push(`/studio/${job.type ?? 'story'}`)}
+              className="bg-violet-600 hover:bg-violet-700 text-white text-xs"
+            >
+              <RefreshCw size={12} className="mr-1.5" />
+              {lang === 'zh' ? '重新创建' : 'Create again'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* 切片进度 */}
       {job.clips && job.clips.length > 0 && !isDone && (
