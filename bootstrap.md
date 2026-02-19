@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-19 (Round 19)
+> **最后更新**: 2026-02-19 (Round 20)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -35,6 +35,14 @@
 - **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
 - **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
 - Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 20 更新（Clip 后编辑 + Remix Omni 修复 + 播客/剧集增强）：**
+- **Clip 后编辑**：job 详情页每个完成 clip 新增「编辑」按钮，内联展开：编辑意图文本框 + 保留原音开关；提交后调用 `POST /api/studio/edit-clip`，原地覆盖 clip（同一 clip_id），job 回到 generating，webhook 完成后自动重新 stitch
+- **`POST /api/studio/edit-clip`**：调用 `kling-v3-omni` `video_list.refer_type="base"` 编辑底片模式；无积分扣费（精修已付费内容）
+- **Remix Omni 修复**：`submitReferenceToVideo`（错误 endpoint `/v1/videos/reference2video`）彻底删除，换成 `submitVideoToVideo`（`/v1/videos/omni-video` + `video_list`）；Tier 1 改用 `refer_type: "feature"` 继承原视频运镜风格
+- **`getTaskStatus` 三重 fallback**：image2video → text2video → omni-video，覆盖所有 Kling 任务类型
+- **播客分镜台词可编辑**：storyboard 表格台词列改为 `<input>`，可在预览时直接修改
+- **Story 前情提要**：第 2 集起显示「前情提要」文本框，传入 API 作为 prevCliffhanger 兜底（DB 查不到时使用）
 
 **Round 19 更新（Anime 脚本可编辑 + 2 新网红 + 积分退还完善）：**
 - **Anime wizard 台词可编辑**：Script 步骤台词改为 `<textarea>`，支持直接修改；新增 `extractError` 警告横幅（AI 识别失败时提示手动填写）
@@ -121,6 +129,8 @@ source dev.sh  # 重启 dev server
 | 🔴 | 端到端测试（Kling webhook → stitch → 视频完成全链路） | 待测试 |
 | 🟢 | Story wizard 偏好持久化（platform/duration/narrativeStyle） | ✅ 完成 |
 | 🟢 | Job 列表页类型筛选 | ✅ 完成 |
+| 🟢 | Clip 后编辑（POST /api/studio/edit-clip，omni base 模式） | ✅ 完成 |
+| 🟢 | Remix Omni 修复（submitVideoToVideo + refer_type feature/base） | ✅ 完成 |
 | 🟡 | Kling 自定义声线（Subject Library voice_id 绑定） | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
 | 🟡 | blockProvider 持久化（当前 in-process Map，cold start 会重置） | 待做 |

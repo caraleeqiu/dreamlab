@@ -168,6 +168,11 @@ wizard → POST /api/studio/[type]
 - **Anime script editing**: Script step renders dialogues as editable textareas. AI extraction failure shows amber warning banner prompting manual fill.
 - **New influencers**: Marin (fashion/virtual, recommended for wear category) and Senku (tech/tools/virtual, recommended for tools category).
 - **Credits refund on job-create failure**: All 5 studio submit routes (anime/edu/podcast/remix/story) now call `add_credits` RPC immediately if the job INSERT fails, closing a gap where credits could be lost before any clip was created.
+- **Clip post-editing** (`POST /api/studio/edit-clip`): Any completed clip can be re-edited via `kling-v3-omni` base editing mode (`video_list refer_type: "base"`). The clip is updated in-place (same `clip_id`/`clip_index`), job resets to `generating`, and the existing webhook → stitch pipeline handles re-assembly automatically. No credit charge — editing refines already-paid content.
+- **Remix Omni upgrade** (`submitVideoToVideo`): Replaces the former `submitReferenceToVideo` which used a non-existent endpoint. Unified function supports both `refer_type: "feature"` (cinematic style reference, used by remix) and `"base"` (direct editing, used by edit-clip). Kling API constraint: `sound` must be `"off"` when `video_list` is present; `keepOriginalSound` controls audio preservation instead.
+- **`getTaskStatus` triple fallback**: image2video → text2video → omni-video, so the webhook handles all Kling task types without storing endpoint type per clip.
+- **Podcast storyboard inline editing**: Dialogue column in the storyboard preview table is now an editable `<input>` — no need to go back a step to fix a line.
+- **Story series `previousEpisodeSummary`**: Episode 2+ shows an optional free-text field for the prior episode's events. Used as `prevCliffhanger` fallback when the DB lookup finds no completed prior job.
 
 ### Kling API 3.0 Reference
 
@@ -180,6 +185,8 @@ wizard → POST /api/studio/[type]
 | `element_list` | Subject control (character image binding) |
 | `voice_list` | Voice binding (via Subject Library `voice_id`) |
 | `duration` | String enum `"3"`–`"15"` |
+| `video_list` | Video reference; `refer_type: "feature"` = cinematic style ref (remix); `refer_type: "base"` = editing target (clip edit). `sound` must be `"off"` when present |
+| `keep_original_sound` | `"yes"/"no"` — preserve source video audio when using `video_list` |
 
 **Multi-shot grouping strategy** (`groupClips`):
 - Each group: ≤ 6 shots AND total duration ≤ 15s
