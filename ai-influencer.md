@@ -1,25 +1,32 @@
 # 🎭 Dreamlab - AI Influencer Factory 项目详细文档
 
 > **项目代号**: Dreamlab（AI红网工厂）
-> **最后更新**: 2026-02-19 (Round 12 — 运镜系统 + Provider 路由)
+> **最后更新**: 2026-02-19 (Round 12 完结)
 > **状态**: 🟢 **全流程可测试** — 完整导航架构，14个网红图片上线，工作台/任务管理/历史作品全部完成
 
-## ✅ Round 12（2026-02-19）— 运镜系统 + Provider 路由
+## ✅ Round 12（2026-02-19）— 运镜 + Provider路由 + Subject Library + 剧集系列 + 论文解读
 
-### 核心目标
-1. 建立完整的运镜/景别词汇体系，让 Gemini 生成电影级分镜描述
-2. 引入 Video Provider 路由层，支持 Kling → Seedance 的可插拔切换
-3. 修复所有提交路由的静默失败 bug（clip 卡死在 pending 状态）
-4. 为 Story / Anime / Podcast 引入 5 类开场钩子系统
+### 新增/修改文件
 
-### 新增文件
 | 文件 | 作用 |
 |------|------|
 | `src/lib/video-router.ts` | Provider 路由层：Kling quota 错误识别、provider 封锁/解封、`classifyKlingResponse()` 统一分类 |
+| `src/lib/seedance.ts` | Seedance 2.0 客户端存根（API 未发布，含 TODO + 回退逻辑） |
+| `src/lib/video-utils.ts` | `groupClipsByProvider()` + `annotateProviders()` + `resolveClipProvider()`：多 Provider 分组路由 |
+| `src/app/api/jobs/recover/route.ts` | Job 恢复路由：每 10 分钟重试卡在 submitted 的 clips（Supabase Cron 触发）|
+| `src/app/api/admin/influencers/sync-subjects/route.ts` | 影人批量注册 Kling Subject Library，写回 `element_id` |
+| `src/app/api/studio/edu/paper/route.ts` | 论文解读提交路由：arXiv/PDF → Napkin 分镜图 → 影人 PiP 视频 |
+| `src/app/api/studio/edu/paper/script/route.ts` | 论文解读脚本生成 |
+| `src/app/api/studio/edu/paper/diagrams/route.ts` | Napkin AI 分镜图生成 |
+| `src/app/api/studio/series/route.ts` | 剧集系列元数据持久化 |
+| `src/lib/napkin.ts` | Napkin AI 客户端（自动生成可视化概念图）|
+| `src/__tests__/video-router.test.ts` | 21 个单元测试（全部通过）|
+| `supabase/migrations/001_add_series_columns.sql` | series/episode/cliffhanger 字段 |
+| `supabase/migrations/002_multi_provider_clips.sql` | provider/task_id on clips, metadata on jobs, index |
 
-### 运镜词汇体系（Gemini Prompt 升级）
+---
 
-所有 Gemini 脚本生成路由统一升级：
+### 1. 运镜词汇体系（Gemini Prompt 升级）
 
 **景别（12 个）**：极特写 / 特写 / 中近景 / 中景 / 中远景 / 全景 / 大远景 / 俯拍 / 仰拍 / 鸟瞰 / 过肩 / 第一视角
 
@@ -27,59 +34,104 @@
 
 **shot_description 公式**：`[景别] + [运镜] + [主体动作] + [场景环境] + [光影色调]`
 
-例：`"Medium close-up, slow dolly in, host speaking to camera, modern studio, warm bokeh lighting"`
-
-**已升级路由**：`podcast/script` / `anime/script` / `story/script` / `storyboard`
-
-### kling.ts — buildClipPrompt 升级
-
-`shot_type` 和 `camera_movement` 字段现在拼入 Kling prompt：
+`buildClipPrompt` 自动将 `shot_type` + `camera_movement` 拼入 Kling prompt：
 ```
 [特写, 慢推] Medium close-up, slow dolly in, host facing camera...
 ```
 
-### 开场钩子系统（HOOK_PROMPT）
+已升级：`podcast/script` / `anime/script` / `story/script` / `storyboard`
 
-| Job 类型 | 钩子类型 | 说明 |
-|----------|----------|------|
-| **Story** | midaction / curiosity / confession / visual / silence | 叙事类，戏剧冲突驱动 |
-| **Anime** | midaction / curiosity / confession / visual / silence | 叙事类，动漫视觉语言强化 |
+---
+
+### 2. 开场钩子系统（HOOK_PROMPT）
+
+| Job 类型 | 钩子 | 说明 |
+|----------|------|------|
+| **Story / Anime** | midaction / curiosity / confession / visual / silence | 叙事类，戏剧冲突驱动 |
 | **Podcast** | bold_claim / question / story / stat / contrast | 信息类，认知驱动 |
 
-前端传 `hookType` 字段到 script 生成接口，Gemini 会按照对应钩子模板构建第一幕。
+前端传 `hookType` 字段到 script 生成接口，Gemini 按对应钩子模板构建第一幕。
 
-### Provider 路由层设计
+---
 
+### 3. Provider 路由层 + 静默失败修复（P0）
+
+**改前**：Kling 返回错误时，clip 永远卡在 `pending`/`submitted`。
+
+**改后**：`classifyKlingResponse()` 统一处理 → 无 taskId 时 `failClipAndCheckJob()` 立即终结。已修复 8 条路由（podcast / script / link / anime / story / remix / edu/talk / edu/animated）。
+
+**Provider 路由逻辑**：
 ```
-Kling v3 (primary)
-  ↓ quota error (code: 1600039/1600040/1600037)
-Provider blocked 2h → clip → failed（不再卡死）
-  ↓ (Seedance API 上线后)
-getActiveProvider() 返回 'seedance' → submitToSeedance()
+有角色台词 → resolveClipProvider() → 'kling'（角色锚定）
+纯场景/B-roll → 'seedance'（Seedance API 上线后启用）
+annotateProviders(clips, { forceKling: true })  ← edu/talk, edu/animated
 ```
 
 **3 套 SOP 状态**：
 - 全 Kling：当前线上运行
-- 全 Seedance：Seedance API 上线后改 `getActiveProvider()` 权重即可
-- 混合模式：上线后加 `getProviderForJobType(jobType)` 按 job 类型分配
+- 全 Seedance：`getActiveProvider()` 改权重即可
+- 混合模式：`resolveClipProvider()` 已就绪，等 Seedance API
 
-### 静默失败修复（P0）
+---
 
-**改前**：所有提交路由在 Kling 返回错误时，clip 永远停留在 `pending`/`submitted`，用户无限等待。
+### 4. Kling 3.0 Subject Library
 
-**改后**：`classifyKlingResponse()` 统一处理，无 taskId 时调 `failClipAndCheckJob()` 立即终结 clip，job 状态同步更新。
+- `createSubject(name, imageUrls)` → `POST /v1/general/advanced-custom-elements` → `element_id`
+- `submitOmniVideo()` → `kling-v3-omni` 模型，支持 `voice_list` 内联语音（免去 lip-sync 步骤）
+- `buildClipPrompt` 优先用 `influencer.kling_element_id`，无则回退 `frontal_image_url`
+- `POST /api/admin/influencers/sync-subjects`：批量注册所有影人，结果写回 DB
 
-**已修复路由**：podcast / script / link / anime / story / remix / edu/talk / edu/animated（共 8 个）
+---
 
-### job-service.ts 新增
-- `failClipAndCheckJob(service, jobId, clipIndex, errorMsg)` — 标记 clip 失败并检查 job 是否全部完成
+### 5. 跨分镜视觉一致性（consistency_anchor）
+
+`ScriptClip.consistency_anchor`：一句话锁定角色外观 + 场景 + 光线，跨幕保持完全一致描述，避免 Kling 多次调用间视觉漂移。
+
+格式：`"Jake穿黑色夹克、三日胡须，坐在卡车驾驶座，深夜高速公路冷蓝色月光"`
+
+- Gemini story/script 生成时自动产生 `consistency_anchor`
+- story/route 将其注入每个 shot 的 Kling prompt
+- story-wizard 提供可编辑的 anchor 文本区域
+
+---
+
+### 6. Job 恢复 & 超时保护
+
+`POST /api/jobs/recover`（Supabase Cron `*/10 * * * *`）：
+- 查找 `status=submitted AND updated_at < now()-30min` 的卡住 clips
+- 对每个 clip 重发 webhook，触发完整状态更新流程
+- 用 `x-recover-secret` header 鉴权
+
+---
+
+### 7. Story 剧集系列模式
+
+- `seriesMode / seriesName / episodeNumber / cliffhanger` 字段
+- `castRoles`：为每位影人指定角色名，注入 Gemini 描述
+- `series-panel.tsx`：续集规划面板（上一集 cliffhanger → 下一集承接）
+- `StoryWizardHandle.jumpToSeries(name, episode)` imperative handle
+
+---
+
+### 8. 论文解读（edu/paper）
+
+arXiv 链接 / PDF → Napkin AI 自动生成分镜概念图 → 影人 PiP 画中画解读视频
+
+流程：`paper/script` (Gemini 解析) → `paper/diagrams` (Napkin AI) → `paper` (Kling 视频提交)
+
+---
+
+### 基础设施（已配置）
+
+- DB migration 001 + 002 已跑
+- Supabase Cron 每 10 分钟触发 recover 路由
+- `POST /api/admin/influencers/sync-subjects` 可随时调用注册影人
 
 ### 待完成（下一轮）
-- [ ] Kling 3.0: `frontal_image_url` → `element_id`（Subject Library 迁移）
-- [ ] Job 超时保护：clip 超过 30 分钟仍 submitted 时主动查询状态
-- [ ] Clip 重试机制（`retry_count` 字段）
-- [ ] Seedance API 集成（API 文档发布后）
-- [ ] DB migration: `ALTER TABLE clips ADD COLUMN provider TEXT DEFAULT 'kling'`
+
+- [ ] Seedance API 集成（等 Volcengine/ByteDance 发布 REST API）
+- [ ] Clip 重试机制（`retry_count` 字段，最多 2 次）
+- [ ] `lipsync_url` 字段废弃（始终等于 `video_url`，可清理）
 
 ---
 
