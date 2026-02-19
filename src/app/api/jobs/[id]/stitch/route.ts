@@ -222,11 +222,58 @@ async function composePipClip(opts: {
 
 async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClient>>, jobId: number) {
   const { data: job } = await service.from('jobs').select('metadata, script, user_id, credit_cost').eq('id', jobId).single()
-  const { data: clips } = await service.from('clips').select('lipsync_url, clip_index').eq('job_id', jobId).order('clip_index')
+  const { data: clips } = await service.from('clips').select('lipsync_url, video_url, clip_index').eq('job_id', jobId).order('clip_index')
 
   if (!clips?.length) {
     await service.from('jobs').update({ status: 'failed', error_msg: 'No clips to stitch' }).eq('id', jobId)
     await refundCredits(service, job)
+    return
+  }
+
+  // Splice mode: 3-part concat [before + generated_clip + after]
+  const isSplice = job?.metadata?.splice_mode === true
+  if (isSplice) {
+    const beforeUrl: string | null = job.metadata.splice_before_url ?? null
+    const afterUrl: string | null = job.metadata.splice_after_url ?? null
+    const generatedClip = clips[0]?.lipsync_url || clips[0]?.video_url || null
+    if (!generatedClip) {
+      await service.from('jobs').update({ status: 'failed', error_msg: 'No generated clip for splice' }).eq('id', jobId)
+      return
+    }
+    const parts: string[] = []
+    const spliceDir = path.join(os.tmpdir(), `dreamlab_splice_${jobId}_${Date.now()}`)
+    fs.mkdirSync(spliceDir, { recursive: true })
+
+    const downloadPart = async (url: string, name: string) => {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const p = path.join(spliceDir, name)
+      fs.writeFileSync(p, Buffer.from(await res.arrayBuffer()))
+      return p
+    }
+
+    if (beforeUrl) { const p = await downloadPart(beforeUrl, 'before.mp4'); if (p) parts.push(p) }
+    const genPath = await downloadPart(generatedClip, 'generated.mp4')
+    if (genPath) parts.push(genPath)
+    if (afterUrl) { const p = await downloadPart(afterUrl, 'after.mp4'); if (p) parts.push(p) }
+
+    if (!parts.length) {
+      await service.from('jobs').update({ status: 'failed', error_msg: 'Splice parts unavailable' }).eq('id', jobId)
+      return
+    }
+
+    const finalPath = path.join(spliceDir, 'final.mp4')
+    await crossfadeConcat(parts, finalPath, spliceDir)
+    const splicedUrl = await uploadToR2(`jobs/${jobId}/final.mp4`, fs.readFileSync(finalPath), 'video/mp4')
+
+    // Update the original job's final video too
+    const origJobId: number | null = job.metadata.original_job_id ?? null
+    if (origJobId) {
+      await service.from('jobs').update({ final_video_url: splicedUrl }).eq('id', origJobId)
+    }
+    await service.from('jobs').update({ status: 'done', final_video_url: splicedUrl, updated_at: new Date().toISOString() }).eq('id', jobId)
+    logger.info('splice stitch complete', { jobId, splicedUrl })
+    try { fs.rmSync(spliceDir, { recursive: true, force: true }) } catch {}
     return
   }
 

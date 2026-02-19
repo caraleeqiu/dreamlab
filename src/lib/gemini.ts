@@ -128,6 +128,78 @@ export async function callGeminiJson<T>(params: GeminiParams): Promise<T> {
   }
 }
 
+/**
+ * Gemini Vision call — accepts inline image data (JPEG/PNG buffers) alongside text.
+ * Used for video keyframe analysis: send N extracted frames + analysis prompt.
+ * Returns parsed JSON of type T.
+ */
+export async function callGeminiVision<T>(params: {
+  textPrompt: string
+  imageBuffers: Buffer[]   // JPEG buffers (up to 16 images per call)
+  mimeType?: string
+  model?: string
+  timeoutMs?: number
+}): Promise<T> {
+  const {
+    textPrompt,
+    imageBuffers,
+    mimeType = 'image/jpeg',
+    model = 'gemini-2.0-flash',
+    timeoutMs = 90_000,
+  } = params
+
+  const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`
+
+  const imageParts = imageBuffers.map(buf => ({
+    inline_data: { mime_type: mimeType, data: buf.toString('base64') },
+  }))
+
+  const body = JSON.stringify({
+    contents: [{
+      parts: [
+        ...imageParts,
+        { text: textPrompt },
+      ],
+    }],
+    generationConfig: { responseMimeType: 'application/json' },
+  })
+
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: ac.signal,
+      })
+      clearTimeout(timer)
+      if (res.status === 400 || res.status === 401 || res.status === 403) {
+        throw new Error(`Gemini Vision ${res.status}: ${(await res.text()).slice(0, 200)}`)
+      }
+      if (!res.ok) {
+        lastErr = new Error(`Gemini Vision HTTP ${res.status}`)
+        await sleep(1000 * Math.pow(2, attempt))
+        continue
+      }
+      const data = await res.json()
+      const text: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text
+      if (!text) { lastErr = new Error('Gemini Vision empty response'); await sleep(1000 * Math.pow(2, attempt)); continue }
+      const cleaned = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+      return JSON.parse(cleaned) as T
+    } catch (err) {
+      clearTimeout(timer)
+      lastErr = err
+      const msg = String((err as Error)?.message ?? '')
+      if (msg.includes('Gemini Vision 400') || msg.includes('Gemini Vision 401') || msg.includes('Gemini Vision 403')) throw err
+      if (attempt < 2) await sleep(1000 * Math.pow(2, attempt))
+    }
+  }
+  throw lastErr ?? new Error('Gemini Vision failed after retries')
+}
+
 function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms))
 }

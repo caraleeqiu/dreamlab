@@ -48,6 +48,40 @@ export interface Job {
   cliffhanger?: string
 }
 
+// ── Remix analysis (Gemini video decomposition) ──────────────────────────────
+
+export interface RemixSceneAnalysis {
+  sceneIndex: number
+  estimatedDuration: number        // seconds
+  subject: string                  // character: appearance, outfit, gesture
+  location: string                 // environment, props, background
+  lighting: string                 // "3-point studio warm" / "outdoor cold" etc
+  cameraShot: string               // shot type + camera movement
+  emotion: string                  // emotional beat for this scene
+  dialogueStyle: string            // speaking pace/energy
+  storyboardPrompt: string         // English Kling prompt for environment ONLY (no character)
+  consistencyAnchor: string        // location+lighting lock (shared by same-location scenes)
+}
+
+export interface RemixAnalysis {
+  narrative: {
+    hookType: string               // bold_claim / question / story / stat / visual / action
+    structure: string              // hook-build-payoff / reveal / loop / contrast
+    pacing: string                 // ultra-fast / fast / medium / slow
+    platformStyle: string          // tiktok / xiaohongshu / bilibili / youtube
+    totalScenes: number
+    estimatedTotalDuration: number // seconds
+  }
+  scenes: RemixSceneAnalysis[]
+  styleGuide: {
+    visualStyle: string
+    colorPalette: string
+    lightingSetup: string
+    editingRhythm: string
+  }
+  remixScript: ScriptClip[]        // ready-to-use script with our influencer slots
+}
+
 export interface ScriptClip {
   index: number
   speaker: string          // influencer slug
