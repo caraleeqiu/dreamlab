@@ -51,20 +51,27 @@ export default function JobsPage() {
   )
 
   useEffect(() => {
-    fetchJobs()
-    const timer = setInterval(fetchJobs, 8000)
-    return () => clearInterval(timer)
-  }, [])
+    // 初始拉取（立刻显示数据，不等 SSE）
+    fetch('/api/jobs')
+      .then(r => r.json())
+      .then(data => {
+        setJobs((Array.isArray(data) ? data : []).filter(
+          (j: Job) => !['done', 'failed'].includes(j.status)
+        ))
+        setLoading(false)
+      })
 
-  async function fetchJobs() {
-    const res = await fetch('/api/jobs')
-    const data = await res.json()
-    const active = (Array.isArray(data) ? data : []).filter(
-      (j: Job) => !['done', 'failed'].includes(j.status)
-    )
-    setJobs(active)
-    setLoading(false)
-  }
+    // SSE 实时推送活跃任务（替代 8s 轮询）
+    const es = new EventSource('/api/jobs/stream')
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      setJobs(Array.isArray(data) ? data : [])
+      setLoading(false)
+    }
+    es.onerror = () => es.close()
+
+    return () => es.close()
+  }, [])
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -73,7 +80,7 @@ export default function JobsPage() {
           {lang === 'zh' ? '任务管理' : 'Tasks'}
         </h1>
         <p className="text-sm text-zinc-500 mt-0.5">
-          {lang === 'zh' ? '进行中的任务 · 每8秒自动刷新' : 'In-progress tasks · refreshes every 8s'}
+          {lang === 'zh' ? '进行中的任务 · 实时更新' : 'In-progress tasks · live updates'}
         </p>
       </div>
 

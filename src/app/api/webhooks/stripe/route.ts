@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('webhook:stripe')
 
 export async function POST(req: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-01-28.clover' })
@@ -12,6 +15,7 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Webhook Error'
+    logger.warn('signature verification failed', { message })
     return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 })
   }
 
@@ -20,7 +24,7 @@ export async function POST(req: NextRequest) {
     const { user_id, package_id, credits } = session.metadata ?? {}
 
     if (!user_id || !credits) {
-      console.error('Stripe webhook: missing metadata', session.id)
+      logger.error('missing metadata', { sessionId: session.id })
       return NextResponse.json({ error: 'Missing metadata' }, { status: 400 })
     }
 
@@ -40,6 +44,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (existing) {
+      logger.info('duplicate session, skipping', { sessionId: session.id })
       return NextResponse.json({ received: true, duplicate: true })
     }
 
@@ -52,9 +57,11 @@ export async function POST(req: NextRequest) {
     })
 
     if (error) {
-      console.error('add_credits error:', error)
+      logger.error('add_credits failed', { sessionId: session.id, error: error.message })
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    logger.info('credits added', { userId: user_id, credits: creditsAmount, packageId: package_id })
   }
 
   return NextResponse.json({ received: true })

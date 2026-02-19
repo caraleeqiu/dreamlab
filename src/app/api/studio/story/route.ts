@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { submitMultiShotVideo } from '@/lib/kling'
 import { getPresignedUrl } from '@/lib/r2'
+import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
+import { apiError } from '@/lib/api-response'
+import { deductCredits } from '@/lib/job-service'
 import type { ScriptClip, Influencer } from '@/types'
-
-const CREDIT_COST = 30
 
 const NARRATIVE_VISUAL: Record<string, string> = {
   skit:      'situational comedy, exaggerated expressions, fast-paced',
@@ -16,34 +17,28 @@ const NARRATIVE_VISUAL: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return apiError('Unauthorized', 401)
 
   const { storyTitle, storyIdea, genre, narrativeStyle, influencerIds, platform, aspectRatio, durationS, script, lang } = await req.json()
   if (!influencerIds?.length || !platform || !script) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    return apiError('Missing required fields', 400)
   }
 
   const { data: influencers } = await supabase
     .from('influencers').select('*').in('id', influencerIds)
-  if (!influencers?.length) return NextResponse.json({ error: 'Influencers not found' }, { status: 404 })
+  if (!influencers?.length) return apiError('Influencers not found', 404)
 
   const service = await createServiceClient()
-
-  const { error: deductErr } = await service.rpc('deduct_credits', {
-    p_user_id: user.id, p_amount: CREDIT_COST,
-    p_reason: `故事短片: ${storyTitle || storyIdea.slice(0, 30)}`,
-  })
-  if (deductErr?.message?.includes('insufficient_credits')) {
-    return NextResponse.json({ error: 'insufficient_credits' }, { status: 402 })
-  }
+  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.story, `故事短片: ${storyTitle || storyIdea.slice(0, 30)}`)
+  if (creditError) return creditError
 
   const title = storyTitle || `故事: ${storyIdea.slice(0, 20)}...`
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'story', status: 'generating', language: lang || 'zh',
     title, platform, aspect_ratio: aspectRatio || '9:16',
-    influencer_ids: influencerIds, duration_s: durationS, script, credit_cost: CREDIT_COST,
+    influencer_ids: influencerIds, duration_s: durationS, script, credit_cost: CREDIT_COSTS.story,
   }).select().single()
-  if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 })
+  if (jobErr) return apiError(jobErr.message, 500)
 
   const clips = script as ScriptClip[]
   const infMap = Object.fromEntries((influencers as Influencer[]).map(inf => [inf.slug, inf]))
@@ -51,7 +46,6 @@ export async function POST(req: NextRequest) {
   const styleVisual = NARRATIVE_VISUAL[narrativeStyle] || 'cinematic style'
   const totalDuration = clips.reduce((sum, c) => sum + (c.duration || 5), 0)
 
-  // Build combined prompt — intelligence mode handles camera cuts and movement
   const shotDescriptions = clips.map((c, i) => {
     const actor = infMap[c.speaker] || primaryInf
     const dialogue = c.dialogue ? ` ${actor.name} says: "${c.dialogue}"` : ''
@@ -73,14 +67,13 @@ export async function POST(req: NextRequest) {
     ? await getPresignedUrl(frontalKey)
     : primaryInf.frontal_image_url || ''
 
-  const CALLBACK = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
   const resp = await submitMultiShotVideo({
     imageUrl,
     prompt: combinedPrompt,
     shotType: 'intelligence',
     totalDuration,
     aspectRatio: aspectRatio || '9:16',
-    callbackUrl: CALLBACK,
+    callbackUrl: getCallbackUrl(),
   })
 
   const taskId = resp?.data?.task_id

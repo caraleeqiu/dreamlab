@@ -1,8 +1,45 @@
 # 🎭 Dreamlab - AI Influencer Factory 项目详细文档
 
 > **项目代号**: Dreamlab（AI红网工厂）
-> **最后更新**: 2026-02-18 (Round 10)
+> **最后更新**: 2026-02-19 (Round 11 — 架构重构)
 > **状态**: 🟢 **全流程可测试** — 完整导航架构，14个网红图片上线，工作台/任务管理/历史作品全部完成
+
+## ✅ Round 11（2026-02-19）— 架构重构
+
+### 新增文件
+| 文件 | 作用 |
+|------|------|
+| `src/lib/config.ts` | 积分费用 & 套餐单一数据源，所有路由从此处导入 |
+| `src/lib/api-response.ts` | 统一 `apiError()` 响应格式，消除各路由 JSON 格式不一致 |
+| `src/lib/job-service.ts` | 服务层：`deductCredits()` / `createClipRecords()`，提取重复业务逻辑 |
+| `src/lib/logger.ts` | 结构化日志：开发彩色输出，生产单行 JSON（适配日志聚合） |
+| `src/lib/video-utils.ts` | `groupClips()` 纯函数：Kling multi-shot 分组（≤6 shots / ≤15s） |
+| `src/app/api/jobs/[id]/stream/route.ts` | SSE 推送 job+clips 状态，每 3s 一次，完成/失败自动关闭 |
+| `src/app/api/jobs/stream/route.ts` | SSE 推送活跃任务列表，每 4s 一次，列表清空自动关闭 |
+| `vitest.config.ts` | Vitest 测试框架配置（支持 `@/*` 路径别名） |
+| `src/__tests__/` | 32 个单元测试（config / api-response / job-service / video-utils / retry） |
+
+### 改动路由（11 个）
+所有 studio/credits/influencers 路由统一使用 `config.ts` 积分常量、`apiError()` 错误格式、`deductCredits()` 服务层；`script`/`podcast`/`link` 路由补加了必填字段校验。
+
+### 前端实时化
+- `jobs/[id]/page.tsx`：`setInterval(10s 轮询)` → `EventSource` SSE
+- `jobs/page.tsx`：`setInterval(8s 轮询)` → `EventSource` SSE
+
+### Kling 重试机制
+`src/lib/kling.ts` 新增 `withRetry`：指数退避，最多 3 次，延迟 1s/2s/4s，网络级异常才触发重试，业务错误直接透传。
+
+### 测试覆盖
+```
+src/__tests__/config.test.ts        8 tests  — 积分常量、套餐完整性
+src/__tests__/api-response.test.ts  4 tests  — 错误格式
+src/__tests__/job-service.test.ts   7 tests  — deductCredits / createClipRecords
+src/__tests__/video-utils.test.ts   8 tests  — groupClips 边界条件
+src/__tests__/retry.test.ts         5 tests  — withRetry 行为
+总计：32 tests，全部通过
+```
+
+---
 
 ## ✅ 已完成进度（2026-02-18 更新）
 

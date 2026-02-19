@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { CREDIT_PACKAGES, type CreditPackageId } from '@/lib/config'
+import { apiError } from '@/lib/api-response'
 import Stripe from 'stripe'
-
-const PACKAGES: Record<string, { credits: number; bonus: number; price: number; name: string }> = {
-  starter:  { credits: 100,  bonus: 0,   price: 990,   name: '入门包 100积分' },
-  standard: { credits: 300,  bonus: 30,  price: 2500,  name: '标准包 300+30积分' },
-  pro:      { credits: 800,  bonus: 100, price: 5900,  name: '专业包 800+100积分' },
-  team:     { credits: 2000, bonus: 300, price: 12800, name: '团队包 2000+300积分' },
-}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return apiError('Unauthorized', 401)
 
   const { packageId } = await req.json()
-  const pkg = PACKAGES[packageId]
-  if (!pkg) return NextResponse.json({ error: 'Invalid package' }, { status: 400 })
+  const pkg = CREDIT_PACKAGES[packageId as CreditPackageId]
+  if (!pkg) return apiError('Invalid package', 400)
 
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-01-28.clover' })
 
@@ -29,7 +24,7 @@ export async function POST(req: NextRequest) {
           name: `Dreamlab ${pkg.name}`,
           description: `${pkg.credits + pkg.bonus} 积分充值`,
         },
-        unit_amount: pkg.price, // 单位：分
+        unit_amount: pkg.price,
       },
       quantity: 1,
     }],

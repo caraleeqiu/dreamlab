@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { submitSimpleVideo } from '@/lib/kling'
+import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
+import { apiError } from '@/lib/api-response'
+import { deductCredits, createClipRecords } from '@/lib/job-service'
 import type { Influencer } from '@/types'
-
-const CREDIT_COST = 5
 
 const REMIX_STYLE_LABELS: Record<string, string> = {
   commentary: '网红解说', reaction: '反应视频', duet: '合拍二创', remake: '同款翻拍',
@@ -12,26 +13,20 @@ const REMIX_STYLE_LABELS: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return apiError('Unauthorized', 401)
 
   const { videoUrl, videoTitle, influencerId, platform, remixStyle, aspectRatio, lang } = await req.json()
   if (!videoUrl || !influencerId || !platform) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    return apiError('Missing required fields', 400)
   }
 
   const { data: influencer } = await supabase
     .from('influencers').select('*').eq('id', influencerId).single()
-  if (!influencer) return NextResponse.json({ error: 'Influencer not found' }, { status: 404 })
+  if (!influencer) return apiError('Influencer not found', 404)
 
   const service = await createServiceClient()
-
-  // Deduct credits
-  const { error: deductErr } = await service.rpc('deduct_credits', {
-    p_user_id: user.id, p_amount: CREDIT_COST, p_reason: `爆款二创: ${videoTitle || videoUrl.slice(0, 40)}`,
-  })
-  if (deductErr?.message?.includes('insufficient_credits')) {
-    return NextResponse.json({ error: 'insufficient_credits' }, { status: 402 })
-  }
+  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.remix, `爆款二创: ${videoTitle || videoUrl.slice(0, 40)}`)
+  if (creditError) return creditError
 
   // Generate script via Gemini
   let script: Array<{ index: number; speaker: string; dialogue: string; shot_description: string; duration: number }> = []
@@ -55,26 +50,22 @@ export async function POST(req: NextRequest) {
     script = [{ index: 0, speaker: influencer.slug, dialogue: `来看这个视频，我来解读一下。`, shot_description: '网红正面出镜', duration: 10 }]
   }
 
-  // Create job
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
     user_id: user.id, type: 'remix', status: 'generating', language: lang || 'zh',
     title: `二创: ${videoTitle || videoUrl.slice(0, 40)}`,
     platform, aspect_ratio: aspectRatio || '9:16',
-    influencer_ids: [influencerId], script, credit_cost: CREDIT_COST,
+    influencer_ids: [influencerId], script, credit_cost: CREDIT_COSTS.remix,
   }).select().single()
-  if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 })
+  if (jobErr) return apiError(jobErr.message, 500)
 
-  // Create clips + submit to Kling
-  const clipInserts = script.map(clip => ({ job_id: job.id, clip_index: clip.index, status: 'pending', prompt: '' }))
-  const { data: clips } = await service.from('clips').insert(clipInserts).select()
-
+  const clips = await createClipRecords(service, job.id, script)
   const styleDescMap: Record<string, string> = { commentary: 'commentary style', reaction: 'reaction video', duet: 'duet', remake: 'remake/recreation' }
   const styleDesc = styleDescMap[remixStyle as string] || ''
-  const CALLBACK = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
+  const callbackUrl = getCallbackUrl()
 
   await Promise.allSettled(script.map(async (clip) => {
     const prompt = `${clip.shot_description}. ${influencer.name}: ${influencer.speaking_style || 'energetic'}. [VOICE: ${influencer.voice_prompt}]. "${clip.dialogue}". ${styleDesc}`
-    const resp = await submitSimpleVideo({ prompt, imageUrl: influencer.frontal_image_url || '', durationS: clip.duration, aspectRatio: aspectRatio || '9:16', callbackUrl: CALLBACK })
+    const resp = await submitSimpleVideo({ prompt, imageUrl: influencer.frontal_image_url || '', durationS: clip.duration, aspectRatio: aspectRatio || '9:16', callbackUrl })
     const taskId = resp?.data?.task_id
     if (taskId && clips) {
       await service.from('clips').update({ status: 'submitted', kling_task_id: taskId, prompt })

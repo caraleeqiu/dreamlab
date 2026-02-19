@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getTaskStatus } from '@/lib/kling'
 import { uploadToR2 } from '@/lib/r2'
+import { createLogger } from '@/lib/logger'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -11,6 +12,8 @@ import ffmpegPath from 'ffmpeg-static'
 // Point fluent-ffmpeg at the bundled static binary
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath)
 
+const logger = createLogger('webhook:kling')
+
 // POST /api/webhooks/kling — Kling 回调
 // 收到通知后主动查询任务状态（方案③，防伪造）
 export async function POST(request: NextRequest) {
@@ -18,8 +21,10 @@ export async function POST(request: NextRequest) {
   const task_id = body?.data?.task_id || body?.task_id
   if (!task_id) return NextResponse.json({ ok: true })
 
+  logger.info('callback received', { task_id })
+
   // 立即响应防止 Kling 重试
-  handleCallback(task_id).catch(console.error)
+  handleCallback(task_id).catch(err => logger.error('handleCallback failed', { task_id, err: String(err) }))
 
   return NextResponse.json({ ok: true })
 }
@@ -60,6 +65,7 @@ async function handleCallback(task_id: string) {
       lipsync_url: r2Url,
     }).eq('id', clip.id)
 
+    logger.info('clip uploaded', { task_id, jobId: clip.job_id, clipIndex: clip.clip_index })
     await checkAndUpdateJobStatus(service, clip.job_id)
   }
 }
@@ -147,7 +153,7 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
     }).eq('id', jobId)
 
   } catch (err) {
-    console.error(`[stitchVideo] job ${jobId} failed:`, err)
+    logger.error('stitch failed, falling back to first clip', { jobId, err: String(err) })
     // Fallback: mark done with first clip so users can still download individually
     await service.from('jobs').update({
       status: 'done',

@@ -28,24 +28,26 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   }
 
   useEffect(() => {
+    // 初始拉取完整 job 数据（含 clips 数组）
     fetchJob()
-    const timer = setInterval(() => {
-      if (job?.status !== 'done' && job?.status !== 'failed') poll()
-    }, 10000)
-    return () => clearInterval(timer)
-  }, [id, job?.status])
+
+    // SSE 实时状态推送（替代 10s 轮询）
+    const es = new EventSource(`/api/jobs/${id}/stream`)
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      setJob(prev => prev ? { ...prev, ...data } : prev)
+    }
+    // 服务端关闭连接（job 完成/失败/超时）时 onerror 触发，正常关闭即可
+    es.onerror = () => es.close()
+
+    return () => es.close()
+  }, [id])
 
   async function fetchJob() {
     const res = await fetch(`/api/jobs/${id}`)
     const data = await res.json()
     setJob(data)
     setLoading(false)
-  }
-
-  async function poll() {
-    const res = await fetch(`/api/jobs/${id}/poll`)
-    const data = await res.json()
-    setJob(prev => prev ? { ...prev, ...data } : prev)
   }
 
   if (loading) return (
