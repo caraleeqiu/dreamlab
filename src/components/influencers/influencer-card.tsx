@@ -53,10 +53,10 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
     try {
       const res = await fetch(`/api/influencers/${influencer.id}/register-kling`, { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Registration failed')
+      if (!res.ok) throw new Error(data.error || (lang === 'en' ? 'Registration failed' : '注册失败'))
       setRegistered(true)
     } catch (err: unknown) {
-      setRegError(err instanceof Error ? err.message : 'Failed')
+      setRegError(err instanceof Error ? err.message : (lang === 'en' ? 'Registration failed' : '注册失败'))
     } finally {
       setRegistering(false)
     }
