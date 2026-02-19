@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { submitMultiShotVideo } from '@/lib/kling'
+import { getPresignedUrl } from '@/lib/r2'
 import type { ScriptClip, Influencer } from '@/types'
 
 const CREDIT_COST = 30
@@ -67,9 +68,14 @@ export async function POST(req: NextRequest) {
     job_id: job.id, clip_index: 0, status: 'pending', prompt: combinedPrompt,
   }]).select()
 
+  const frontalKey = primaryInf.frontal_image_url?.split('/dreamlab-assets/')[1]
+  const imageUrl = frontalKey
+    ? await getPresignedUrl(frontalKey)
+    : primaryInf.frontal_image_url || ''
+
   const CALLBACK = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
   const resp = await submitMultiShotVideo({
-    imageUrl: primaryInf.frontal_image_url || '',
+    imageUrl,
     prompt: combinedPrompt,
     shotType: 'intelligence',
     totalDuration,
