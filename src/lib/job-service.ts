@@ -71,11 +71,13 @@ export async function failClipAndCheckJob(
       .eq('id', jobId)
       .single()
     if (job?.user_id && job.credit_cost > 0) {
-      service.rpc('add_credits', {
-        p_user_id: job.user_id,
-        p_amount: job.credit_cost,
-        p_reason: `refund:submit_failed:${jobId}`,
-      }).catch(() => {})
+      ;(async () => {
+        await service.rpc('add_credits', {
+          p_user_id: job.user_id,
+          p_amount: job.credit_cost,
+          p_reason: `refund:submit_failed:${jobId}`,
+        })
+      })()
     }
   }
 }

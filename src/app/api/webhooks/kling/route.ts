@@ -112,12 +112,15 @@ async function checkAndUpdateJobStatus(
       .eq('id', jobId)
 
     if (job?.user_id && job.credit_cost > 0) {
-      service.rpc('add_credits', {
-        p_user_id: job.user_id,
-        p_amount: job.credit_cost,
-        p_reason: `refund:job_failed:${jobId}`,
-      }).then(() => logger.info('credits refunded', { jobId, amount: job.credit_cost }))
-        .catch(err => logger.error('refund failed', { jobId, err: String(err) }))
+      ;(async () => {
+        const { error } = await service.rpc('add_credits', {
+          p_user_id: job.user_id,
+          p_amount: job.credit_cost,
+          p_reason: `refund:job_failed:${jobId}`,
+        })
+        if (error) logger.error('refund failed', { jobId, err: error.message })
+        else logger.info('credits refunded', { jobId, amount: job.credit_cost })
+      })()
     }
     return
   }
