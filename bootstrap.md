@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-19 (Round 20)
+> **最后更新**: 2026-02-19 (Round 21)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -35,6 +35,13 @@
 - **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
 - **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
 - Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 21 更新（帧链式 + 分镜图生成 + Seedance 客户端 + Provider 路由）：**
+- **帧链式（Story/Script 专属）**：story route 仅提交 group 0，groups 1..N 存入 `clips.prompt` 作为 deferred JSON payload；webhook clip 完成时 ffmpeg 提取最后一帧上传 R2，再触发下一 group 提交并以该帧为 `first_frame` 锚点，解决跨 group 接缝"传送门感"
+- **`lib/imagen.ts`**：Gemini 2.0 Flash 图像生成，为每个 clip 生成分镜预览帧；`generateStoryboardFrame()` / `generateStoryboardFrames()`，失败时自动回退到网红正面图
+- **`lib/kling.ts` 参数扩展**：`submitMultiShotVideo` 新增 `firstFrameUrl`（帧链锚点）和 `referenceVideoUrl`（运镜风格参考，`refer_type:"feature"`）
+- **`lib/seedance.ts`**：即梦 2.0 完整 API 客户端；`submitSeedanceVideo()`（@素材多模态语法构建）、`extendSeedanceVideo()`（向后/向前延长）、`getSeedanceTaskStatus()`；`seedanceSupportsFace()` 拦截写实真人（平台政策）
+- **`lib/video-router.ts`**：`getActiveProvider()` 开启 Seedance 路由（设置 `SEEDANCE_API_KEY` 后生效）；`selectClipProvider()` 三策略（kling/seedance/hybrid）；真人网红始终强制 Kling
 
 **Round 20 更新（Clip 后编辑 + Remix Omni 修复 + 播客/剧集增强）：**
 - **Clip 后编辑**：job 详情页每个完成 clip 新增「编辑」按钮，内联展开：编辑意图文本框 + 保留原音开关；提交后调用 `POST /api/studio/edit-clip`，原地覆盖 clip（同一 clip_id），job 回到 generating，webhook 完成后自动重新 stitch
@@ -131,6 +138,10 @@ source dev.sh  # 重启 dev server
 | 🟢 | Job 列表页类型筛选 | ✅ 完成 |
 | 🟢 | Clip 后编辑（POST /api/studio/edit-clip，omni base 模式） | ✅ 完成 |
 | 🟢 | Remix Omni 修复（submitVideoToVideo + refer_type feature/base） | ✅ 完成 |
+| 🟢 | Story/Script 帧链式（deferred 顺序提交 + ffmpeg 最后帧提取） | ✅ 完成 |
+| 🟢 | lib/imagen.ts 分镜帧生成（Gemini 2.0 Flash imageGen） | ✅ 完成 |
+| 🟢 | lib/seedance.ts 即梦2.0 API 客户端 | ✅ 完成（等 API Key）|
+| 🟢 | video-router.ts Provider 三策略（kling/seedance/hybrid） | ✅ 完成 |
 | 🟡 | Kling 自定义声线（Subject Library voice_id 绑定） | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
 | 🟡 | blockProvider 持久化（当前 in-process Map，cold start 会重置） | 待做 |
