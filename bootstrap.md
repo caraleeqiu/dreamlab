@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-19 (Round 16)
+> **最后更新**: 2026-02-19 (Round 17)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -35,6 +35,12 @@
 - **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
 - **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
 - Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 17 更新（Link Jina 升级 + 用户偏好持久化）：**
+- **Link extract 重写**：从 raw fetch（8K 字符）升级为 Jina AI reader（60K），平台检测同播客（微信/小红书/B站/抖音/Twitter），友好错误 + `fallback: 'script'` 字段
+- **Link wizard 来源提示**：Step 0 加中英文分开的支持/不支持来源说明板
+- **用户偏好持久化**：新建 `profiles.preferences JSONB` 列（Migration 003）+ `PATCH /api/user/preferences` 接口；播客 / Link wizard 从偏好回填 platform/duration/format，设置完成时静默保存
+- **DB 迁移 003 已执行**：`preferences` 列已上线
 
 **Round 16 更新（播客 wizard 改版 + Story 视觉一致性）：**
 - **播客 wizard Step 0 重设计**：从 3 个模式（trending/import/custom）改为 4 个顶层 tab（🔥 热点 / ✍️ 自己写 / 🔗 链接 / 📄 PDF）
@@ -95,8 +101,12 @@ source dev.sh  # 重启 dev server
 | 🟢 | 播客 wizard 4 tab 重设计（热点/自己写/链接/PDF） | ✅ 完成 |
 | 🟢 | Story consistency_anchor 跨幕视觉一致性 | ✅ 完成 |
 | 🟢 | 链接来源提示 + Twitter oEmbed + fallback 处理 | ✅ 完成 |
-| 🔴 | **DB 迁移 001+002 执行**（series字段 + provider/task_id 字段）| ⚠️ 需手动跑 SQL |
+| 🟢 | Link extract 升级 Jina AI（60K 限制 + 平台检测） | ✅ 完成 |
+| 🟢 | 用户偏好持久化（profiles.preferences + /api/user/preferences） | ✅ 完成 |
+| 🟢 | DB 迁移 001+002+003 全部执行完毕 | ✅ 完成 |
 | 🔴 | 端到端测试（Kling webhook → stitch → 视频完成全链路） | 待测试 |
+| 🟡 | Story wizard 偏好持久化（platform/duration/narrativeStyle） | 待做 |
+| 🟡 | Job 列表页类型筛选 | 待做 |
 | 🟡 | Kling 自定义声线（Subject Library voice_id 绑定） | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
 | 🟡 | blockProvider 持久化（当前 in-process Map，cold start 会重置） | 待做 |

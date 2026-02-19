@@ -159,6 +159,8 @@ wizard → POST /api/studio/[type]
 - **Recovery cron**: Supabase Cron fires `POST /api/jobs/recover` every 10 minutes to re-process clips stuck in `submitted` state > 30 min.
 - **Visual consistency (`consistency_anchor`)**: Story `ScriptClip` includes a `consistency_anchor` string (character appearance + location + lighting). Injected into every Kling prompt batch as `[Visual anchor: ...]` to maintain cross-clip character/scene coherence.
 - **Podcast wizard 4-tab entry**: Step 0 has 4 top-level modes — 🔥 Trending (topic list + conversation angle input simultaneously), ✍️ Write (textarea), 🔗 URL (with source hints and `fallback: 'write'` error handling), 📄 PDF. URL extraction uses Jina AI reader + Twitter oEmbed for tweets; platform-blocked sources (WeChat, Xiaohongshu, video platforms) return friendly errors and auto-switch to Write mode.
+- **Link extract via Jina AI**: Replaced raw fetch/HTML-strip (8K chars) with Jina AI reader (60K chars). Same platform detection as podcast — WeChat/Xiaohongshu/Bilibili/Douyin return `fallback: 'script'` errors; Twitter uses oEmbed.
+- **User preferences persistence**: `profiles.preferences JSONB` stores per-module wizard defaults (`{ podcast: {platform, duration, format}, link: {platform, duration} }`). `PATCH /api/user/preferences` merges module-level updates. Wizards pre-fill state from `initialPrefs` prop and silently save on key step transitions.
 
 ### Kling API 3.0 Reference
 
