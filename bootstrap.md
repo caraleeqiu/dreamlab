@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-19 (Round 15)
+> **最后更新**: 2026-02-19 (Round 16)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -35,6 +35,16 @@
 - **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
 - **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
 - Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 16 更新（播客 wizard 改版 + Story 视觉一致性）：**
+- **播客 wizard Step 0 重设计**：从 3 个模式（trending/import/custom）改为 4 个顶层 tab（🔥 热点 / ✍️ 自己写 / 🔗 链接 / 📄 PDF）
+- **热点 tab 新增对话输入框**：热点话题列表和角度输入框同屏显示，用户可指定角度（可选）
+- **链接 tab 来源提示**：分中英文列出支持/不支持来源，❌ 不支持平台提示切换到「自己写」
+- **Extract route 升级**：Twitter/X oEmbed 支持（单推文）；微信/小红书/B站/抖音返回友好错误 + `fallback: 'write'` 字段；前端自动切换 tab
+- **Story `consistency_anchor`**：ScriptClip 新增 `consistency_anchor` 字段（角色外观+场景+光线一句话），注入每次 Kling 调用，保持跨幕视觉一致性
+- **Webhook 双字段查询**：先查 `kling_task_id`，再 fallback 到 `task_id`，防止漏回调
+- **系列剧 UI**：Job 详情页显示系列名+集数 badge + cliffhanger 预览
+- **podcast-home.tsx**：入口卡片更新为 4 个（trending / write / url / pdf）
 
 **Round 15 更新（i18n 修复）：**
 - **API 层双语**：`deductCredits()` 新增 `lang` 参数，402 错误返回对应语言（`积分不足` / `Insufficient credits`）
@@ -82,10 +92,13 @@ source dev.sh  # 重启 dev server
 | 🟢 | P1 架构修复（Gemini重试/Subject Library/恢复任务） | ✅ 完成 |
 | 🟢 | API 层全双语（deductCredits/job titles/html lang） | ✅ 完成 |
 | 🟢 | Supabase Cron 每10分钟触发 /api/jobs/recover | ✅ 完成 |
+| 🟢 | 播客 wizard 4 tab 重设计（热点/自己写/链接/PDF） | ✅ 完成 |
+| 🟢 | Story consistency_anchor 跨幕视觉一致性 | ✅ 完成 |
+| 🟢 | 链接来源提示 + Twitter oEmbed + fallback 处理 | ✅ 完成 |
+| 🔴 | **DB 迁移 001+002 执行**（series字段 + provider/task_id 字段）| ⚠️ 需手动跑 SQL |
 | 🔴 | 端到端测试（Kling webhook → stitch → 视频完成全链路） | 待测试 |
 | 🟡 | Kling 自定义声线（Subject Library voice_id 绑定） | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
-| 🟡 | DB 迁移 002 执行（provider/task_id/element_id 字段） | 待确认 |
 | 🟡 | blockProvider 持久化（当前 in-process Map，cold start 会重置） | 待做 |
 | ⬜ | JINA_API_KEY 申请（免费，不填也能跑） | 可选 |
 

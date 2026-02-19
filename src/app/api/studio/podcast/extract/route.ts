@@ -44,16 +44,74 @@ Return strict JSON (no markdown code blocks):
   let geminiBody: object
 
   if (url?.trim()) {
-    // Step 1: Jina AI Reader — strips nav/ads, returns clean article text
-    const jinaUrl = `https://r.jina.ai/${url.trim()}`
-    const jinaHeaders: Record<string, string> = { 'Accept': 'text/plain', 'X-Return-Format': 'text' }
-    if (process.env.JINA_API_KEY) jinaHeaders['Authorization'] = `Bearer ${process.env.JINA_API_KEY}`
+    const trimmedUrl = url.trim()
+    const isTwitter = /twitter\.com|x\.com/.test(trimmedUrl)
+    const isWechat = /mp\.weixin\.qq\.com/.test(trimmedUrl)
+    const isBilibili = /bilibili\.com/.test(trimmedUrl)
+    const isDouyin = /douyin\.com/.test(trimmedUrl)
+    const isXhs = /xiaohongshu\.com/.test(trimmedUrl)
 
-    const jinaRes = await fetch(jinaUrl, { headers: jinaHeaders, signal: AbortSignal.timeout(30000) })
-    if (!jinaRes.ok) return NextResponse.json({ error: `无法读取链接内容 (${jinaRes.status})` }, { status: 422 })
+    // 不支持的平台直接返回友好错误
+    if (isWechat) return NextResponse.json({
+      error: isZh
+        ? '微信公众号无法直接读取，请在文章内复制全文后使用「自己写」粘贴'
+        : 'WeChat articles require login. Please copy the text and use the Write mode.',
+      fallback: 'write',
+    }, { status: 422 })
 
-    const rawText = await jinaRes.text()
-    if (!rawText.trim()) return NextResponse.json({ error: '内容为空，请检查链接' }, { status: 422 })
+    if (isBilibili || isDouyin) return NextResponse.json({
+      error: isZh
+        ? '暂不支持视频平台链接，请复制视频文案或简介后使用「自己写」'
+        : 'Video platform links are not supported. Please copy the description and use Write mode.',
+      fallback: 'write',
+    }, { status: 422 })
+
+    if (isXhs) return NextResponse.json({
+      error: isZh ? '小红书链接需要登录才能访问，请复制笔记内容后使用「自己写」' : 'Xiaohongshu requires login.',
+      fallback: 'write',
+    }, { status: 422 })
+
+    let rawText = ''
+
+    // Twitter/X: 用 oEmbed API 读取单条推文
+    if (isTwitter) {
+      try {
+        const oembedRes = await fetch(
+          `https://publish.twitter.com/oembed?url=${encodeURIComponent(trimmedUrl)}&omit_script=true`,
+          { signal: AbortSignal.timeout(10000) },
+        )
+        if (!oembedRes.ok) throw new Error('oEmbed failed')
+        const data = await oembedRes.json() as { html?: string; author_name?: string }
+        rawText = (data.html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        if (!rawText) throw new Error('empty')
+      } catch {
+        return NextResponse.json({
+          error: isZh
+            ? '仅支持单条推文，Thread 请复制全文后使用「自己写」'
+            : 'Only single tweets are supported. For threads, copy the text and use Write mode.',
+          fallback: 'write',
+        }, { status: 422 })
+      }
+    } else {
+      // Step 1: Jina AI Reader — strips nav/ads, returns clean article text
+      const jinaUrl = `https://r.jina.ai/${trimmedUrl}`
+      const jinaHeaders: Record<string, string> = { 'Accept': 'text/plain', 'X-Return-Format': 'text' }
+      if (process.env.JINA_API_KEY) jinaHeaders['Authorization'] = `Bearer ${process.env.JINA_API_KEY}`
+
+      const jinaRes = await fetch(jinaUrl, { headers: jinaHeaders, signal: AbortSignal.timeout(30000) })
+      if (!jinaRes.ok) return NextResponse.json({
+        error: isZh
+          ? `无法读取该链接（${jinaRes.status}），请复制正文后使用「自己写」`
+          : `Cannot read this URL (${jinaRes.status}). Copy the text and use Write mode.`,
+        fallback: 'write',
+      }, { status: 422 })
+
+      rawText = await jinaRes.text()
+      if (!rawText.trim()) return NextResponse.json({
+        error: isZh ? '页面内容为空，可能是需要登录的页面' : 'Page content is empty, may require login.',
+        fallback: 'write',
+      }, { status: 422 })
+    }
 
     // Trim to ~60K chars to stay within token limits
     const trimmed = rawText.slice(0, 60000)

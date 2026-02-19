@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN, enUS } from 'date-fns/locale'
 import {
-  Flame, FileText, PenLine,
+  Flame, FileText, PenLine, Link2,
   CheckCircle2, XCircle, Clock, Loader2,
   ArrowLeft, ArrowRight, Mic,
 } from 'lucide-react'
@@ -13,7 +13,7 @@ import PodcastWizard from './podcast-wizard'
 import { UI, t } from '@/lib/i18n'
 import type { Influencer, Job, Language } from '@/types'
 
-type PodcastMode = 'trending' | 'import' | 'custom'
+type PodcastMode = 'trending' | 'write' | 'url' | 'pdf'
 
 interface Props {
   lang: Language
@@ -29,27 +29,35 @@ export default function PodcastClient({ lang, credits, influencers, recentJobs }
     {
       id: 'trending',
       icon: <Flame size={22} className="text-orange-400" />,
-      title: lang === 'zh' ? '热点话题' : 'Trending Topics',
+      title: lang === 'zh' ? '🔥 热点话题' : '🔥 Trending Topics',
       badge: lang === 'zh' ? '最热门' : 'Popular',
       desc: lang === 'zh'
         ? '从今日热榜选题，AI 自动提炼要点生成播客'
         : 'Pick from today\'s trending topics, AI extracts key points',
     },
     {
-      id: 'import',
-      icon: <FileText size={22} className="text-blue-400" />,
-      title: lang === 'zh' ? '导入内容' : 'Import Content',
+      id: 'write',
+      icon: <PenLine size={22} className="text-violet-400" />,
+      title: lang === 'zh' ? '✍️ 自己写' : '✍️ Write Your Own',
       desc: lang === 'zh'
-        ? '粘贴链接 / 文章内容，AI 提炼成播客'
-        : 'Paste a link or article content, AI turns it into a podcast',
+        ? '粘贴文章、书摘或脚本大纲，自由创作'
+        : 'Paste an article, book excerpt, or outline — free-form creation',
     },
     {
-      id: 'custom',
-      icon: <PenLine size={22} className="text-violet-400" />,
-      title: lang === 'zh' ? '自己写' : 'Write Your Own',
+      id: 'url',
+      icon: <Link2 size={22} className="text-blue-400" />,
+      title: lang === 'zh' ? '🔗 粘贴链接' : '🔗 Paste URL',
       desc: lang === 'zh'
-        ? '直接输入话题或贴入脚本，自由创作'
-        : 'Enter a topic or paste a script, free-form creation',
+        ? '粘贴任意文章链接，AI 读取并提炼播客观点'
+        : 'Paste any article URL, AI reads and extracts podcast insights',
+    },
+    {
+      id: 'pdf',
+      icon: <FileText size={22} className="text-green-400" />,
+      title: lang === 'zh' ? '📄 上传 PDF' : '📄 Upload PDF',
+      desc: lang === 'zh'
+        ? '上传书籍或报告 PDF，AI 提炼核心观点变播客'
+        : 'Upload a book or report PDF, AI extracts core insights',
     },
   ]
 

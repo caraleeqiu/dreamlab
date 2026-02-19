@@ -149,13 +149,16 @@ wizard → POST /api/studio/[type]
 
 - **FFmpeg in dedicated route**: `POST /api/jobs/[id]/stitch` with `maxDuration=300` avoids Vercel's 60s function timeout. Webhook triggers it via fire-and-forget `fetch()`.
 - **Webhook security**: Kling callback URL includes `?whs=KLING_WEBHOOK_SECRET`. Handler validates before processing.
+- **Webhook robustness**: Clip lookup first queries by `kling_task_id`, then falls back to `task_id` via `.maybeSingle()` chaining — handles both old and new records.
 - **Credits refund**: Two refund points — submit-time failure (job-service) and generation-time failure (webhook). Uses `add_credits` Supabase RPC.
 - **Gemini reliability**: All script routes use `callGeminiJson<T>()` — 3 retries, 60s timeout per attempt, exponential backoff (1s/2s/4s), strips markdown fences.
 - **Subject Library**: Influencer creation auto-registers with Kling 3.0 Subject Library (fire-and-forget). `buildClipPrompt` prefers `element_id` over `frontal_image_url` for better character consistency.
-- **Multi-provider routing**: `video-router.ts` routes clips to Kling or Seedance based on availability. In-process `Map<provider, blockedUntil>` (resets on cold start — DB-backed routing is a future improvement).
+- **Multi-provider routing**: `video-router.ts` routes clips to Kling or Seedance based on availability. In-process `Map<provider, blockedUntil>` (resets on cold start — DB-backed routing is a future improvement). Currently Kling-only until Seedance 2.0 key is available.
 - **Bilingual API layer**: All user-facing API errors respect `lang` from request body. Job titles stored bilingually based on user's language preference.
 - **Dynamic HTML lang**: Root layout reads `dreamlab-lang` cookie (set by app layout after profile fetch) → `<html lang="en">` or `<html lang="zh-CN">`.
 - **Recovery cron**: Supabase Cron fires `POST /api/jobs/recover` every 10 minutes to re-process clips stuck in `submitted` state > 30 min.
+- **Visual consistency (`consistency_anchor`)**: Story `ScriptClip` includes a `consistency_anchor` string (character appearance + location + lighting). Injected into every Kling prompt batch as `[Visual anchor: ...]` to maintain cross-clip character/scene coherence.
+- **Podcast wizard 4-tab entry**: Step 0 has 4 top-level modes — 🔥 Trending (topic list + conversation angle input simultaneously), ✍️ Write (textarea), 🔗 URL (with source hints and `fallback: 'write'` error handling), 📄 PDF. URL extraction uses Jina AI reader + Twitter oEmbed for tweets; platform-blocked sources (WeChat, Xiaohongshu, video platforms) return friendly errors and auto-switch to Write mode.
 
 ### Kling API 3.0 Reference
 

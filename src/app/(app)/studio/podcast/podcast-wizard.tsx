@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { ChevronLeft, Loader2, Check, Link2, Upload, FileText, X } from 'lucide-react'
+import { ChevronLeft, Loader2, Check, Upload, FileText, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ import { t, UI } from '@/lib/i18n'
 
 interface Topic { id: string; title: string; angle: string; source: string; date: string }
 interface Concept { title: string; summary: string }
-interface Props { lang: Language; credits: number; influencers: Influencer[]; initialMode?: 'trending' | 'import' | 'custom' }
+interface Props { lang: Language; credits: number; influencers: Influencer[]; initialMode?: 'trending' | 'url' | 'pdf' | 'write' }
 
 export default function PodcastWizard({ lang, credits, influencers, initialMode }: Props) {
   const searchParams = useSearchParams()
@@ -20,9 +20,9 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
 
-  // Step 0 — mode
-  const [inputMode, setInputMode] = useState<'trending' | 'custom' | 'import'>(
-    initialMode === 'import' ? 'import' : initialMode === 'custom' ? 'custom' : 'trending'
+  // Step 0 — mode (4 tabs)
+  const [inputMode, setInputMode] = useState<'trending' | 'write' | 'url' | 'pdf'>(
+    initialMode === 'url' ? 'url' : initialMode === 'pdf' ? 'pdf' : initialMode === 'write' ? 'write' : 'trending'
   )
 
   // Step 0 — trending
@@ -30,12 +30,12 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
   const [trendLoading, setTrendLoading] = useState(false)
   const [activeCategory, setActiveCategory] = useState(TOPIC_CATEGORIES[lang][0])
   const [selectedTopics, setSelectedTopics] = useState<Topic[]>([])
+  const [trendingIdea, setTrendingIdea] = useState('') // conversation input on trending tab
 
-  // Step 0 — custom
+  // Step 0 — write
   const [customText, setCustomText] = useState('')
 
-  // Step 0 — import
-  const [importSubMode, setImportSubMode] = useState<'url' | 'pdf'>('url')
+  // Step 0 — url / pdf
   const [importUrl, setImportUrl] = useState('')
   const [importFile, setImportFile] = useState<File | null>(null)
 
@@ -82,6 +82,25 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
     if (inputMode === 'trending') fetchTrending(activeCategory)
   }, [activeCategory, inputMode])
 
+  // Source hints for URL tab
+  const sourceHintsZh = {
+    supported: ['任意文章链接', '知乎', '微博', 'Twitter / X（单条推文）'],
+    unsupported: [
+      { name: '微信公众号', tip: '复制正文后使用「自己写」' },
+      { name: '小红书', tip: '需登录，复制内容后使用「自己写」' },
+      { name: '视频链接（B站、抖音）', tip: '复制文案后使用「自己写」' },
+    ],
+  }
+  const sourceHintsEn = {
+    supported: ['Any article URL', 'Medium / Substack', 'Hacker News', 'Twitter / X (single tweet)'],
+    unsupported: [
+      { name: 'WeChat articles', tip: 'Copy text → use Write mode' },
+      { name: 'Xiaohongshu', tip: 'Requires login → copy text → Write mode' },
+      { name: 'Video links (YouTube, TikTok)', tip: 'Copy description → Write mode' },
+    ],
+  }
+  const sourceHints = lang === 'zh' ? sourceHintsZh : sourceHintsEn
+
   async function fetchTrending(category: string) {
     setTrendLoading(true)
     const res = await fetch(`/api/trending?lang=${lang}&category=${encodeURIComponent(category)}`)
@@ -98,22 +117,27 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
     })
   }
 
-  // Extract concepts from URL or PDF (import mode)
+  // Extract concepts from URL or PDF
   async function extractConcepts() {
     setLoading(true)
     const fd = new FormData()
     fd.append('language', lang)
-    if (importSubMode === 'url') {
+    if (inputMode === 'url') {
       fd.append('url', importUrl.trim())
-    } else if (importFile) {
+    } else if (inputMode === 'pdf' && importFile) {
       fd.append('file', importFile)
     }
     const res = await fetch('/api/studio/podcast/extract', { method: 'POST', body: fd })
     const data = await res.json()
     if (data.error) {
       setLoading(false)
-      alert(data.error)
+      // If the platform suggests falling back to write mode, switch automatically
+      if (data.fallback === 'write') {
+        setInputMode('write')
+        setCustomText('')
+      }
       setStep(0)
+      alert(data.error)
       return
     }
     setExtractedTitle(data.source_title || '')
@@ -123,12 +147,14 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
     setLoading(false)
   }
 
-  // Extract keypoints from trending or custom text
+  // Extract keypoints from trending or write text
   async function generateKeypoints() {
     setLoading(true)
-    const topicsToSend = inputMode === 'custom'
+    const topicsToSend = inputMode === 'write'
       ? [{ title: customText, angle: '' }]
-      : selectedTopics
+      : selectedTopics.map((t, i) =>
+          i === 0 && trendingIdea.trim() ? { ...t, angle: trendingIdea.trim() } : t
+        )
     const res = await fetch('/api/studio/podcast/keypoints', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ topics: topicsToSend, language: lang }),
@@ -142,13 +168,14 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
 
   async function generateScript() {
     setLoading(true)
-    const chosenKps = inputMode === 'import'
+    const isImportMode = inputMode === 'url' || inputMode === 'pdf'
+    const chosenKps = isImportMode
       ? selectedConcepts.map(i => `${concepts[i].title}: ${concepts[i].summary}`)
       : keypoints.filter((_, i) => selectedKps.includes(i))
 
-    const topicsToSend = inputMode === 'import'
+    const topicsToSend = isImportMode
       ? [{ title: extractedTitle, angle: 'book-extract' }]
-      : inputMode === 'custom'
+      : inputMode === 'write'
         ? [{ title: customText }]
         : selectedTopics
 
@@ -204,9 +231,9 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
 
     const finalScript = storyboard.length > 0 ? storyboard : script
 
-    const topicsForSubmit = inputMode === 'import'
+    const topicsForSubmit = (inputMode === 'url' || inputMode === 'pdf')
       ? [{ title: extractedTitle }]
-      : inputMode === 'custom'
+      : inputMode === 'write'
         ? [{ title: customText }]
         : selectedTopics
 
@@ -250,7 +277,8 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
   // Step 0 next button disabled logic
   const step0Disabled =
     inputMode === 'trending' ? selectedTopics.length === 0
-    : inputMode === 'import' ? (importSubMode === 'url' ? !importUrl.trim() : !importFile)
+    : inputMode === 'url' ? !importUrl.trim()
+    : inputMode === 'pdf' ? !importFile
     : !customText.trim()
 
   return (
@@ -274,20 +302,23 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
       {/* ── Step 0: 选话题 / 输入内容 ── */}
       {step === 0 && (
         <div className="space-y-4">
-          {/* Mode tabs */}
-          <div className="flex gap-2">
-            {(['trending', 'import', 'custom'] as const).map(m => (
-              <button key={m} onClick={() => setInputMode(m)}
+          {/* Mode tabs — 4 entries */}
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { key: 'trending', label: lang === 'zh' ? '🔥 热点' : '🔥 Trending' },
+              { key: 'write',    label: lang === 'zh' ? '✍️ 自己写' : '✍️ Write' },
+              { key: 'url',      label: lang === 'zh' ? '🔗 链接' : '🔗 URL' },
+              { key: 'pdf',      label: lang === 'zh' ? '📄 PDF' : '📄 PDF' },
+            ] as const).map(({ key, label }) => (
+              <button key={key} onClick={() => setInputMode(key)}
                 className={`px-3 py-1.5 rounded-full text-sm transition-colors
-                  ${inputMode === m ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}>
-                {m === 'trending' ? t(lang, UI.podcast.trendingMode)
-                  : m === 'import' ? (lang === 'zh' ? '导入内容' : 'Import')
-                  : t(lang, UI.podcast.customMode)}
+                  ${inputMode === key ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}>
+                {label}
               </button>
             ))}
           </div>
 
-          {/* Trending */}
+          {/* Trending: topic list + conversation input simultaneously */}
           {inputMode === 'trending' && (
             <>
               <div className="flex gap-2 flex-wrap">
@@ -331,78 +362,106 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
                   {selectedTopics.length === 2 ? t(lang, UI.podcast.topicsMerge) : ''}
                 </p>
               )}
+              {/* Conversation input: ask what angle they want */}
+              <div className="pt-2 border-t border-zinc-800">
+                <p className="text-xs text-zinc-500 mb-1.5">
+                  {lang === 'zh' ? '你想聊什么角度？（可选，留空 AI 自动判断）' : 'What angle do you want? (optional, AI will decide if blank)'}
+                </p>
+                <Textarea
+                  value={trendingIdea}
+                  onChange={e => setTrendingIdea(e.target.value)}
+                  placeholder={lang === 'zh'
+                    ? '例：从职场人的视角，聊聊这件事对普通人的影响...'
+                    : 'e.g. From a career perspective, how does this affect everyday people...'}
+                  className="bg-zinc-800 border-zinc-700 text-white resize-none text-sm"
+                  rows={2}
+                />
+              </div>
             </>
           )}
 
-          {/* Import — URL or PDF */}
-          {inputMode === 'import' && (
-            <div className="space-y-4">
-              {/* Sub-mode tabs */}
-              <div className="flex gap-2">
-                <button onClick={() => setImportSubMode('url')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors
-                    ${importSubMode === 'url' ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}>
-                  <Link2 size={13} />
-                  {lang === 'zh' ? '粘贴链接' : 'URL'}
-                </button>
-                <button onClick={() => setImportSubMode('pdf')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors
-                    ${importSubMode === 'pdf' ? 'bg-violet-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}>
-                  <FileText size={13} />
-                  {lang === 'zh' ? '上传 PDF' : 'Upload PDF'}
-                </button>
-              </div>
-
-              {importSubMode === 'url' && (
-                <div className="space-y-2">
-                  <Input
-                    value={importUrl}
-                    onChange={e => setImportUrl(e.target.value)}
-                    placeholder={lang === 'zh'
-                      ? 'https://... （书籍页面、文章、YouTube 视频）'
-                      : 'https://... (book page, article, YouTube video)'}
-                    className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
-                  />
-                  <p className="text-xs text-zinc-600">
-                    {lang === 'zh'
-                      ? '支持：豆瓣读书、亚马逊、Medium、知乎、YouTube、任意文章'
-                      : 'Supports: Amazon, Medium, Substack, YouTube, any article'}
-                  </p>
-                </div>
-              )}
-
-              {importSubMode === 'pdf' && (
-                <label className="flex flex-col items-center justify-center h-36 rounded-xl border-2 border-dashed border-zinc-700 cursor-pointer hover:border-zinc-500 transition-colors">
-                  <input type="file" accept=".pdf" className="hidden"
-                    onChange={e => setImportFile(e.target.files?.[0] || null)} />
-                  {importFile ? (
-                    <div className="text-center">
-                      <FileText size={22} className="mx-auto mb-2 text-violet-400" />
-                      <p className="text-sm text-white">{importFile.name}</p>
-                      <p className="text-xs text-zinc-500 mt-1">{(importFile.size / 1024 / 1024).toFixed(1)} MB</p>
-                      <button
-                        onClick={e => { e.preventDefault(); setImportFile(null) }}
-                        className="mt-2 flex items-center gap-1 text-xs text-zinc-500 hover:text-red-400 mx-auto transition-colors">
-                        <X size={11} /> {lang === 'zh' ? '移除' : 'Remove'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-center text-zinc-500">
-                      <Upload size={22} className="mx-auto mb-2" />
-                      <p className="text-sm">{lang === 'zh' ? '点击上传 PDF' : 'Click to upload PDF'}</p>
-                      <p className="text-xs mt-1 text-zinc-600">{lang === 'zh' ? '最大 50MB' : 'Max 50MB'}</p>
-                    </div>
-                  )}
-                </label>
-              )}
+          {/* Write: simple textarea */}
+          {inputMode === 'write' && (
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-500">
+                {lang === 'zh'
+                  ? '粘贴文章内容、书摘、脚本大纲，或者直接写你想聊的内容'
+                  : 'Paste article text, book excerpts, script outline, or just write what you want to discuss'}
+              </p>
+              <Textarea value={customText} onChange={e => setCustomText(e.target.value)}
+                placeholder={t(lang, UI.podcast.customPlaceholder)}
+                className="bg-zinc-800 border-zinc-700 text-white resize-none min-h-32" rows={7} />
             </div>
           )}
 
-          {/* Custom */}
-          {inputMode === 'custom' && (
-            <Textarea value={customText} onChange={e => setCustomText(e.target.value)}
-              placeholder={t(lang, UI.podcast.customPlaceholder)}
-              className="bg-zinc-800 border-zinc-700 text-white resize-none min-h-32" rows={6} />
+          {/* URL: input + source hints */}
+          {inputMode === 'url' && (
+            <div className="space-y-3">
+              <Input
+                value={importUrl}
+                onChange={e => setImportUrl(e.target.value)}
+                placeholder="https://..."
+                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
+              />
+              {/* Source hints — zh and en separated */}
+              <div className="rounded-xl border border-zinc-800 p-3 space-y-2 text-xs">
+                <div>
+                  <p className="text-zinc-400 font-medium mb-1">
+                    {lang === 'zh' ? '✅ 支持的来源' : '✅ Supported sources'}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {sourceHints.supported.map(s => (
+                      <li key={s} className="text-zinc-500 flex items-center gap-1.5">
+                        <span className="w-1 h-1 rounded-full bg-zinc-600 shrink-0" />
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="border-t border-zinc-800 pt-2">
+                  <p className="text-zinc-400 font-medium mb-1">
+                    {lang === 'zh' ? '❌ 不支持的来源' : '❌ Unsupported sources'}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {sourceHints.unsupported.map(s => (
+                      <li key={s.name} className="text-zinc-600 flex items-start gap-1.5">
+                        <span className="w-1 h-1 rounded-full bg-zinc-700 shrink-0 mt-1.5" />
+                        <span>
+                          <span className="text-zinc-500">{s.name}</span>
+                          <span className="ml-1 text-zinc-700">— {s.tip}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PDF: upload area */}
+          {inputMode === 'pdf' && (
+            <label className="flex flex-col items-center justify-center h-36 rounded-xl border-2 border-dashed border-zinc-700 cursor-pointer hover:border-zinc-500 transition-colors">
+              <input type="file" accept=".pdf" className="hidden"
+                onChange={e => setImportFile(e.target.files?.[0] || null)} />
+              {importFile ? (
+                <div className="text-center">
+                  <FileText size={22} className="mx-auto mb-2 text-violet-400" />
+                  <p className="text-sm text-white">{importFile.name}</p>
+                  <p className="text-xs text-zinc-500 mt-1">{(importFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                  <button
+                    onClick={e => { e.preventDefault(); setImportFile(null) }}
+                    className="mt-2 flex items-center gap-1 text-xs text-zinc-500 hover:text-red-400 mx-auto transition-colors">
+                    <X size={11} /> {lang === 'zh' ? '移除' : 'Remove'}
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center text-zinc-500">
+                  <Upload size={22} className="mx-auto mb-2" />
+                  <p className="text-sm">{lang === 'zh' ? '点击上传 PDF' : 'Click to upload PDF'}</p>
+                  <p className="text-xs mt-1 text-zinc-600">{lang === 'zh' ? '最大 50MB' : 'Max 50MB'}</p>
+                </div>
+              )}
+            </label>
           )}
         </div>
       )}
@@ -414,12 +473,12 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
             <div className="flex flex-col items-center py-12 gap-3 text-zinc-500">
               <Loader2 size={24} className="animate-spin text-violet-400" />
               <span className="text-sm">
-                {inputMode === 'import'
+                {(inputMode === 'url' || inputMode === 'pdf')
                   ? (lang === 'zh' ? 'AI 正在读取并提炼核心观点...' : 'AI is reading and extracting concepts...')
                   : t(lang, UI.podcast.extracting)}
               </span>
             </div>
-          ) : inputMode === 'import' ? (
+          ) : (inputMode === 'url' || inputMode === 'pdf') ? (
             /* Import mode: rich concept cards */
             <>
               {extractedTitle && (
@@ -663,7 +722,7 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
       {step === 5 && (
         <div className="space-y-6">
           <div className="p-4 rounded-xl bg-zinc-800 space-y-3 text-sm">
-            {inputMode === 'import' && extractedTitle && (
+            {(inputMode === 'url' || inputMode === 'pdf') && extractedTitle && (
               <div className="flex justify-between">
                 <span className="text-zinc-400">{lang === 'zh' ? '来源' : 'Source'}</span>
                 <span className="text-white truncate max-w-48">{extractedTitle}</span>
@@ -692,19 +751,19 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode 
           <Button
             onClick={() => {
               setStep(1)
-              if (inputMode === 'import') extractConcepts()
+              if (inputMode === 'url' || inputMode === 'pdf') extractConcepts()
               else generateKeypoints()
             }}
             disabled={step0Disabled}
             className="bg-violet-600 hover:bg-violet-700 text-white">
-            {inputMode === 'import'
+            {(inputMode === 'url' || inputMode === 'pdf')
               ? (lang === 'zh' ? '提取核心观点' : 'Extract Concepts')
               : (lang === 'zh' ? 'AI 提炼要点' : 'Extract Key Points')}
           </Button>
         )}
         {step === 1 && !loading && (
           <Button onClick={() => setStep(2)}
-            disabled={inputMode === 'import' ? selectedConcepts.length === 0 : selectedKps.length === 0}
+            disabled={(inputMode === 'url' || inputMode === 'pdf') ? selectedConcepts.length === 0 : selectedKps.length === 0}
             className="bg-violet-600 hover:bg-violet-700 text-white">
             {lang === 'zh' ? '下一步：节目设置' : 'Next: Setup'}
           </Button>
