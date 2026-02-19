@@ -165,6 +165,9 @@ wizard → POST /api/studio/[type]
 - **Job detail failure UX**: Failed jobs show error panel with error message, credit refund confirmation, and "Create again" retry button linking back to the appropriate studio.
 - **Series panel enhancements**: `SeriesPanel` shows episode count, last episode's cliffhanger in violet italic, bilingual continue button and episode pills.
 - **Edu Talk URL hints**: Source hints panel below URL input in Talk wizard (supported: articles, arXiv, Wikipedia; unsupported: WeChat, Xiaohongshu, video platforms).
+- **Anime script editing**: Script step renders dialogues as editable textareas. AI extraction failure shows amber warning banner prompting manual fill.
+- **New influencers**: Marin (fashion/virtual, recommended for wear category) and Senku (tech/tools/virtual, recommended for tools category).
+- **Credits refund on job-create failure**: All 5 studio submit routes (anime/edu/podcast/remix/story) now call `add_credits` RPC immediately if the job INSERT fails, closing a gap where credits could be lost before any clip was created.
 
 ### Kling API 3.0 Reference
 

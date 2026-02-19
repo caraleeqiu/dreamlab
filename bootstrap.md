@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-19 (Round 18)
+> **最后更新**: 2026-02-19 (Round 19)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -35,6 +35,13 @@
 - **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
 - **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
 - Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 19 更新（Anime 脚本可编辑 + 2 新网红 + 积分退还完善）：**
+- **Anime wizard 台词可编辑**：Script 步骤台词改为 `<textarea>`，支持直接修改；新增 `extractError` 警告横幅（AI 识别失败时提示手动填写）
+- **Story 投影阵容排序**：`sortedCastInfluencers` 将推荐角色（aria/kai/tanjiro/atlas）排到前面，再按 human/virtual 排
+- **新网红 Marin（时尚 virtual）**：🎀 服装/美妆/cosplay，热情不评判，对应 Fashion 产品类目
+- **新网红 Senku（科技 virtual）**：🔬 数码/工具/效率，极度自信逻辑流，对应 Tools 产品类目
+- **积分退还漏洞修复**：所有 5 条提交路由（anime/edu/podcast/remix/story）job INSERT 失败时立即调用 `add_credits` 退款（此前仅 clip 层有退款）
 
 **Round 18 更新（Job筛选 + Story偏好 + 失败重试 + 系列面板增强）：**
 - **Job 列表类型筛选**：`/jobs` 页顶部新增 7 个筛选芯片（全部/播客/故事/科普/链接/动漫/脚本），`filteredJobs` 计算变量；空列表区分"无任务"与"此类型无任务"
