@@ -1,11 +1,8 @@
 import type { ScriptClip } from '@/types'
 
 /**
- * 将 clip 列表按 Kling multi-shot 限制分组：
- * - 每组最多 6 个 shot
- * - 每组总时长不超过 15 秒
- *
- * 用于动漫营销（anime）场景，将长脚本拆分为多次 Kling API 调用。
+ * Group script clips into batches for Kling multi-shot API.
+ * Constraints: max 6 shots per batch AND max 15s total duration per batch.
  */
 export function groupClips(clips: ScriptClip[]): ScriptClip[][] {
   const groups: ScriptClip[][] = []

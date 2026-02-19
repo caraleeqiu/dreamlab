@@ -11,6 +11,7 @@ import { PLATFORMS } from '@/lib/language'
 import { UI, t } from '@/lib/i18n'
 
 type Step = 'story' | 'cast' | 'platform' | 'script' | 'generate'
+type Category = 'suspense' | 'male' | 'female' | 'other'
 
 interface Props {
   lang: Language
@@ -21,10 +22,16 @@ interface Props {
 export default function StoryWizard({ lang, credits, influencers }: Props) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('story')
+  const [category, setCategory] = useState<Category>('suspense')
   const [storyTitle, setStoryTitle] = useState('')
   const [storyIdea, setStoryIdea] = useState('')
-  const [genre, setGenre] = useState('romance')
+  const [genre, setGenre] = useState('suspense')
   const [narrativeStyle, setNarrativeStyle] = useState('cinematic')
+  const [hookType, setHookType] = useState('midaction')
+  const [subGenre, setSubGenre] = useState('highway')
+  const [seriesMode, setSeriesMode] = useState(false)
+  const [seriesName, setSeriesName] = useState('')
+  const [episodeNumber, setEpisodeNumber] = useState(1)
   const [castInfluencers, setCastInfluencers] = useState<Influencer[]>([])
   const [platform, setPlatform] = useState('')
   const [aspectRatio, setAspectRatio] = useState('9:16')
@@ -37,6 +44,13 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
   const platforms = PLATFORMS[lang]
   const CREDIT_COST = 30
 
+  const CATEGORIES: { id: Category; label: string; emoji: string; active: boolean }[] = [
+    { id: 'suspense', label: lang === 'zh' ? '悬疑'  : 'Mystery', emoji: '🔍', active: true  },
+    { id: 'male',     label: lang === 'zh' ? '男频'  : 'Male',    emoji: '⚔️', active: false },
+    { id: 'female',   label: lang === 'zh' ? '女频'  : 'Female',  emoji: '💕', active: false },
+    { id: 'other',    label: lang === 'zh' ? '其他'  : 'Other',   emoji: '✨', active: false },
+  ]
+
   const STORY_GENRES = [
     { id: 'romance',   label: lang === 'zh' ? '爱情' : 'Romance',   emoji: '💕' },
     { id: 'comedy',    label: lang === 'zh' ? '喜剧' : 'Comedy',    emoji: '😂' },
@@ -44,6 +58,41 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
     { id: 'fantasy',   label: lang === 'zh' ? '奇幻' : 'Fantasy',   emoji: '🌟' },
     { id: 'adventure', label: lang === 'zh' ? '冒险' : 'Adventure', emoji: '🗺️' },
     { id: 'horror',    label: lang === 'zh' ? '恐怖' : 'Horror',    emoji: '👻' },
+  ]
+
+  const SUSPENSE_SUBTYPES = [
+    { id: 'highway',       emoji: '🛣️', label: lang === 'zh' ? '公路灵异'   : 'Highway Paranormal', desc: lang === 'zh' ? '路肩行走者、幽灵搭车者、深夜公路异象' : 'Shoulder walkers, phantom hitchhikers, highway creatures' },
+    { id: 'psychological', emoji: '🧠', label: lang === 'zh' ? '心理悬疑'   : 'Psychological',      desc: lang === 'zh' ? '信任崩塌、身份迷失、记忆欺骗'         : 'Betrayal, identity loss, memory distortion' },
+    { id: 'truecrime',     emoji: '🚨', label: lang === 'zh' ? '真实犯罪'   : 'True Crime Style',   desc: lang === 'zh' ? '目击者视角、休息站发现、现场揭露'     : 'Witness POV, rest stop discoveries, crime scene reveals' },
+    { id: 'dashcam',       emoji: '📹', label: lang === 'zh' ? '行车记录仪' : 'Dashcam Reveal',     desc: lang === 'zh' ? '录像揭示、背景细节、重播发现'         : 'Footage reveal, background detail, rewatch discovery' },
+  ]
+
+  const HOOK_TYPES = [
+    {
+      id: 'midaction',
+      label: lang === 'zh' ? '开场即危机' : 'Mid-Action Open',
+      desc:  lang === 'zh' ? '直接进入事件最高潮的一刻，无铺垫' : 'Drop into the peak moment, no setup',
+    },
+    {
+      id: 'curiosity',
+      label: lang === 'zh' ? '好奇缺口' : 'Curiosity Gap',
+      desc:  lang === 'zh' ? '暗示一件事但不说破，让观众必须继续看' : 'Hint at something, never name it',
+    },
+    {
+      id: 'confession',
+      label: lang === 'zh' ? '第一人称忏悔' : 'Confession',
+      desc:  lang === 'zh' ? '主角直视镜头说出一句"从未告诉过任何人的事"' : '"I never told anyone this… until now"',
+    },
+    {
+      id: 'visual',
+      label: lang === 'zh' ? '视觉悬疑物' : 'Visual Mystery',
+      desc:  lang === 'zh' ? '一个不该出现的物体特写，先图后话' : 'Close-up of an object that shouldn\'t be there',
+    },
+    {
+      id: 'silence',
+      label: lang === 'zh' ? '静默冲击' : 'Dead Silence',
+      desc:  lang === 'zh' ? '几乎无声开场，然后一个声音或一句话打破一切' : 'Near-silence, then one sound breaks everything',
+    },
   ]
 
   const NARRATIVE_STYLES = [
@@ -69,7 +118,7 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
       const res = await fetch('/api/studio/story/script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, influencers: castInfluencers, durationS: duration, lang }),
+        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers: castInfluencers, durationS: duration, lang }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
@@ -90,7 +139,7 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
       const res = await fetch('/api/studio/story', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, influencerIds: castInfluencers.map(i => i.id), platform, aspectRatio, durationS: duration, script, lang }),
+        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencerIds: castInfluencers.map(i => i.id), platform, aspectRatio, durationS: duration, script, lang }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
@@ -134,6 +183,77 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
 
       {step === 'story' && (
         <div className="space-y-5">
+          {/* 分类 Tab */}
+          <div className="flex gap-2">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                disabled={!cat.active}
+                onClick={() => { setCategory(cat.id); setGenre(cat.id === 'suspense' ? 'suspense' : genre) }}
+                className={`relative flex-1 py-2 rounded-lg border text-sm font-medium transition-all
+                  ${!cat.active ? 'border-zinc-800 text-zinc-600 cursor-not-allowed bg-zinc-900/50' :
+                    category === cat.id ? 'border-violet-500 bg-violet-600/10 text-violet-300' :
+                    'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'}`}
+              >
+                <span className="mr-1">{cat.emoji}</span>{cat.label}
+                {!cat.active && (
+                  <span className="absolute -top-1.5 -right-1 text-[9px] bg-zinc-700 text-zinc-400 px-1 rounded-full leading-4">
+                    {lang === 'zh' ? '即将上线' : 'Soon'}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* 悬疑子类型 */}
+          {category === 'suspense' && (
+            <div className="space-y-2">
+              <Label className="text-zinc-400">{lang === 'zh' ? '悬疑类型' : 'Mystery Type'}</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {SUSPENSE_SUBTYPES.map(s => (
+                  <button key={s.id} onClick={() => setSubGenre(s.id)}
+                    className={`p-3 rounded-lg border text-left transition-all ${subGenre === s.id ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
+                    <div className={`text-sm font-medium ${subGenre === s.id ? 'text-violet-300' : 'text-white'}`}>{s.emoji} {s.label}</div>
+                    <div className="text-xs text-zinc-500 mt-0.5">{s.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 系列模式 */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-zinc-700 bg-zinc-800/50">
+            <div>
+              <div className="text-sm text-white">{lang === 'zh' ? '系列剧模式' : 'Series Mode'}</div>
+              <div className="text-xs text-zinc-500 mt-0.5">{lang === 'zh' ? '多集联动，每集结尾自动留悬念' : 'Multi-episode, auto cliffhanger between episodes'}</div>
+            </div>
+            <button onClick={() => setSeriesMode(v => !v)}
+              className={`w-10 h-6 rounded-full transition-colors relative ${seriesMode ? 'bg-violet-600' : 'bg-zinc-700'}`}>
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${seriesMode ? 'left-5' : 'left-1'}`} />
+            </button>
+          </div>
+          {seriesMode && (
+            <div className="space-y-3 p-3 rounded-lg border border-violet-800/50 bg-violet-900/10">
+              <div className="space-y-1.5">
+                <Label className="text-zinc-400">{lang === 'zh' ? '系列名称' : 'Series Name'}</Label>
+                <Input placeholder={lang === 'zh' ? '例如：午夜高速' : 'e.g. Midnight Highway'}
+                  value={seriesName} onChange={e => setSeriesName(e.target.value)}
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-zinc-400">{lang === 'zh' ? '第几集' : 'Episode'}</Label>
+                <div className="flex gap-2">
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                    <button key={n} onClick={() => setEpisodeNumber(n)}
+                      className={`w-8 h-8 rounded-lg border text-xs font-medium transition-all ${episodeNumber === n ? 'border-violet-500 bg-violet-600/10 text-violet-300' : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label className="text-zinc-400">{t(lang, UI.wizard.storyTitleOpt)}</Label>
             <Input
@@ -153,18 +273,7 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white placeholder:text-zinc-600 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
           </div>
-          <div className="space-y-3">
-            <Label className="text-zinc-400">{lang === 'zh' ? '故事类型' : 'Genre'}</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {STORY_GENRES.map(g => (
-                <button key={g.id} onClick={() => setGenre(g.id)}
-                  className={`p-2.5 rounded-lg border text-center transition-all ${genre === g.id ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
-                  <div className="text-xl mb-0.5">{g.emoji}</div>
-                  <div className={`text-xs font-medium ${genre === g.id ? 'text-violet-300' : 'text-white'}`}>{g.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* genre 由 category 决定，当前只开放悬疑，隐藏独立选择 */}
           <div className="space-y-3">
             <Label className="text-zinc-400">{lang === 'zh' ? '叙事风格' : 'Narrative Style'}</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -177,6 +286,19 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
               ))}
             </div>
           </div>
+          <div className="space-y-3">
+            <Label className="text-zinc-400">{lang === 'zh' ? '开场钩子' : 'Opening Hook'}</Label>
+            <div className="space-y-2">
+              {HOOK_TYPES.map(h => (
+                <button key={h.id} onClick={() => setHookType(h.id)}
+                  className={`w-full p-3 rounded-lg border text-left transition-all ${hookType === h.id ? 'border-violet-500 bg-violet-600/10' : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'}`}>
+                  <div className={`text-sm font-medium ${hookType === h.id ? 'text-violet-300' : 'text-white'}`}>{h.label}</div>
+                  <div className="text-xs text-zinc-500 mt-0.5">{h.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-3">
             <Label className="text-zinc-400">{t(lang, UI.wizard.duration)}</Label>
             <div className="flex gap-2">
@@ -272,6 +394,23 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
                 </div>
                 {clip.shot_description && <p className="text-xs text-zinc-500 mb-1 italic">{clip.shot_description}</p>}
                 {clip.dialogue && <p className="text-sm text-zinc-200 leading-relaxed border-l-2 border-violet-600 pl-2">"{clip.dialogue}"</p>}
+                {/* 音效标注 */}
+                <div className="mt-2 flex gap-1.5 flex-wrap">
+                  {[
+                    { id: '',          label: lang === 'zh' ? '无音效' : 'No SFX' },
+                    { id: 'strings',   label: lang === 'zh' ? '弦乐张力' : 'Strings' },
+                    { id: 'heartbeat', label: lang === 'zh' ? '心跳' : 'Heartbeat' },
+                    { id: 'silence',   label: lang === 'zh' ? '完全静音' : 'Dead Silence' },
+                    { id: 'ambient',   label: lang === 'zh' ? '环境音' : 'Ambient' },
+                    { id: 'sting',     label: lang === 'zh' ? '音效刺' : 'Sting' },
+                  ].map(opt => (
+                    <button key={opt.id} onClick={() => {
+                      setScript(prev => prev ? prev.map((c, j) => j === i ? { ...c, bgm: opt.id } : c) : prev)
+                    }} className={`text-xs px-2 py-0.5 rounded-full border transition-all ${(clip.bgm ?? '') === opt.id ? 'border-violet-500 bg-violet-600/20 text-violet-300' : 'border-zinc-700 text-zinc-500 hover:border-zinc-500'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -291,8 +430,8 @@ export default function StoryWizard({ lang, credits, influencers }: Props) {
             <div className="grid grid-cols-2 gap-y-2 text-sm">
               <span className="text-zinc-500">{lang === 'zh' ? '标题' : 'Title'}</span>
               <span className="text-zinc-300">{storyTitle || (lang === 'zh' ? '（无标题）' : '(Untitled)')}</span>
-              <span className="text-zinc-500">{lang === 'zh' ? '类型' : 'Genre'}</span>
-              <span className="text-zinc-300">{STORY_GENRES.find(g => g.id === genre)?.emoji} {STORY_GENRES.find(g => g.id === genre)?.label}</span>
+              <span className="text-zinc-500">{lang === 'zh' ? '类别' : 'Category'}</span>
+              <span className="text-zinc-300">{CATEGORIES.find(c => c.id === category)?.emoji} {CATEGORIES.find(c => c.id === category)?.label}</span>
               <span className="text-zinc-500">{lang === 'zh' ? '风格' : 'Style'}</span>
               <span className="text-zinc-300">{NARRATIVE_STYLES.find(s => s.id === narrativeStyle)?.label}</span>
               <span className="text-zinc-500">{lang === 'zh' ? '演员' : 'Cast'}</span>

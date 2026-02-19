@@ -15,12 +15,27 @@ const NARRATIVE_VISUAL: Record<string, string> = {
   manga:     'manga-inspired, dynamic angles, exaggerated motion, bold composition',
 }
 
+const SUBGENRE_VISUAL: Record<string, string> = {
+  highway:       'dark empty highway at night, isolated, cold blue moonlight, desaturated color grade, high contrast shadows',
+  psychological: 'claustrophobic interior spaces, dutch angle, shallow depth of field, warm amber with deep shadows',
+  truecrime:     'raw handheld camera style, realistic lighting, documentary feel, muted desaturated tones',
+  dashcam:       'dashcam footage aesthetic, wide lens, timestamp overlay, low-light grain, realistic car interior',
+}
+
+const BGM_VISUAL: Record<string, string> = {
+  strings:   'tense string underscore',
+  heartbeat: 'rhythmic heartbeat sound design',
+  silence:   'complete silence — maximum dread',
+  ambient:   'eerie ambient atmosphere',
+  sting:     'sharp orchestral sting',
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const { storyTitle, storyIdea, genre, narrativeStyle, influencerIds, platform, aspectRatio, durationS, script, lang } = await req.json()
+  const { storyTitle, storyIdea, genre, narrativeStyle, subGenre, seriesMode, seriesName, episodeNumber, influencerIds, platform, aspectRatio, durationS, script, lang } = await req.json()
   if (!influencerIds?.length || !platform || !script) {
     return apiError('Missing required fields', 400)
   }
@@ -44,20 +59,25 @@ export async function POST(req: NextRequest) {
   const clips = script as ScriptClip[]
   const infMap = Object.fromEntries((influencers as Influencer[]).map(inf => [inf.slug, inf]))
   const primaryInf = influencers[0] as Influencer
-  const styleVisual = NARRATIVE_VISUAL[narrativeStyle] || 'cinematic style'
-  const totalDuration = clips.reduce((sum, c) => sum + (c.duration || 5), 0)
+  const styleVisual    = NARRATIVE_VISUAL[narrativeStyle] || 'cinematic style'
+  const subGenreVisual = SUBGENRE_VISUAL[subGenre] || ''
+  const totalDuration  = clips.reduce((sum, c) => sum + (c.duration || 5), 0)
+  const seriesTag      = seriesMode && seriesName ? `Series: "${seriesName}" Episode ${episodeNumber}.` : ''
 
   const shotDescriptions = clips.map((c, i) => {
     const actor = infMap[c.speaker] || primaryInf
     const dialogue = c.dialogue ? ` ${actor.name} says: "${c.dialogue}"` : ''
-    return `Scene ${i + 1}: ${c.shot_description}.${dialogue}`
+    const bgmNote  = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
+    return `Scene ${i + 1}: ${c.shot_description}.${dialogue}${bgmNote}`
   }).join('. ')
   const combinedPrompt = [
     `${primaryInf.name} (${primaryInf.tagline}), ${styleVisual}, ${genre} short film.`,
+    subGenreVisual,
+    seriesTag,
     `Voice: ${primaryInf.voice_prompt}.`,
     shotDescriptions,
-    `Vertical format, cinematic quality.`,
-  ].join(' ')
+    `Vertical format 9:16, cinematic quality, mystery atmosphere.`,
+  ].filter(Boolean).join(' ')
 
   const { data: clipRows } = await service.from('clips').insert([{
     job_id: job.id, clip_index: 0, status: 'pending', prompt: combinedPrompt,

@@ -2,11 +2,18 @@
 
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Job, Clip } from '@/types'
 import { useLanguage } from '@/context/language-context'
 import { t, UI } from '@/lib/i18n'
+
+interface PublishKit {
+  caption: string
+  hashtags: string
+  bestPostTime: string
+  hookAdvice: string
+}
 
 const STATUS_STEPS = ['pending', 'scripting', 'generating', 'lipsync', 'stitching', 'done']
 
@@ -16,6 +23,31 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const lang = useLanguage()
   const [job, setJob] = useState<(Job & { clips?: Clip[] }) | null>(null)
   const [loading, setLoading] = useState(true)
+  const [publishKit, setPublishKit] = useState<PublishKit | null>(null)
+  const [loadingKit, setLoadingKit] = useState(false)
+  const [copied, setCopied] = useState('')
+
+  async function generatePublishKit() {
+    if (!job) return
+    setLoadingKit(true)
+    try {
+      const res = await fetch('/api/studio/story/publish-kit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id }),
+      })
+      const data = await res.json()
+      setPublishKit(data)
+    } finally {
+      setLoadingKit(false)
+    }
+  }
+
+  function copyText(text: string, key: string) {
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(''), 2000)
+  }
 
   const STATUS_LABEL: Record<string, string> = {
     pending:    t(lang, UI.jobs.status.pending),
@@ -180,6 +212,48 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 发布包 — 仅 story 类型完成后显示 */}
+      {isDone && job.type === 'story' && (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-zinc-400">{lang === 'zh' ? '发布包' : 'Publish Kit'}</h2>
+            {!publishKit && (
+              <Button onClick={generatePublishKit} disabled={loadingKit} size="sm"
+                className="bg-violet-600 hover:bg-violet-700 text-white text-xs">
+                {loadingKit
+                  ? <><Loader2 size={12} className="animate-spin mr-1" />{lang === 'zh' ? '生成中...' : 'Generating...'}</>
+                  : <><Sparkles size={12} className="mr-1" />{lang === 'zh' ? '生成发布包' : 'Generate Kit'}</>}
+              </Button>
+            )}
+          </div>
+          {publishKit && (
+            <div className="space-y-3">
+              {[
+                { key: 'caption',      label: lang === 'zh' ? '正文 Caption' : 'Caption',        value: publishKit.caption },
+                { key: 'hashtags',     label: lang === 'zh' ? '话题标签'     : 'Hashtags',        value: publishKit.hashtags },
+                { key: 'bestPostTime', label: lang === 'zh' ? '最佳发布时间' : 'Best Post Time',  value: publishKit.bestPostTime },
+                { key: 'hookAdvice',   label: lang === 'zh' ? '算法建议'     : 'Algorithm Tip',   value: publishKit.hookAdvice },
+              ].map(item => (
+                <div key={item.key} className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-zinc-500">{item.label}</span>
+                    <button onClick={() => copyText(item.value, item.key)}
+                      className="flex items-center gap-1 text-xs text-zinc-500 hover:text-white transition-colors">
+                      <Copy size={11} />
+                      {copied === item.key ? (lang === 'zh' ? '已复制' : 'Copied!') : (lang === 'zh' ? '复制' : 'Copy')}
+                    </button>
+                  </div>
+                  <p className="text-sm text-zinc-200 leading-relaxed">{item.value}</p>
+                </div>
+              ))}
+              <button onClick={() => setPublishKit(null)} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">
+                {lang === 'zh' ? '重新生成' : 'Regenerate'}
+              </button>
             </div>
           )}
         </div>

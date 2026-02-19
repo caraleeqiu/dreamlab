@@ -10,6 +10,13 @@ const HOOK_PROMPT: Record<string, string> = {
   silence:    '【开场钩子：静默冲击】第一幕几乎全程无对话，用环境声和视觉张力建立极度压抑的沉默感。然后在第一幕结束时，一个声音或一句话打破一切，作为整个短剧的导火索。',
 }
 
+const SUBGENRE_PROMPT: Record<string, string> = {
+  highway:       '【悬疑子类型：公路灵异】故事必须发生在公路/高速/荒野驾驶场景中。核心元素可选用：路肩上步行的异常人物（姿势不自然、直视司机）、幽灵搭车者（上车后消失）、CB电台收到不明声音、深夜路上遇到不明生物。强调孤立无援的绝望感——距最近城镇数十英里，无法停车。',
+  psychological: '【悬疑子类型：心理悬疑】聚焦人物内心崩塌。元素可选：发现信任的人一直在撒谎、记忆与现实出现矛盾（我确定我做过这件事，但证据说没有）、自己的身份开始动摇。每一幕都应让观众质疑：主角的判断可靠吗？',
+  truecrime:     '【悬疑子类型：真实犯罪风格】以目击者/发现者第一视角展开。元素可选：在不该看到的地方看到了什么、休息站/停车场/荒地中发现异常、被迫成为某个事件的唯一证人。画面感要强烈写实，像真实录像而非电影。',
+  dashcam:       '【悬疑子类型：行车记录仪揭示】关键信息藏在画面背景中，观众第一遍看不到。脚本必须设计一个"重播时刻"——第一幕正常行驶，中间幕通过字幕或角色反应引导观众回想画面，最后幕揭示背景中一直存在的异常细节。',
+}
+
 const GENRE_PROMPT: Record<string, string> = {
   romance:   '爱情故事，细腻情感，真实动人',
   comedy:    '喜剧情景，幽默反转，欢乐轻松',
@@ -31,16 +38,20 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { storyTitle, storyIdea, genre, narrativeStyle, hookType, influencers, durationS, lang } = await req.json()
+  const { storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers, durationS, lang } = await req.json()
 
   const castDesc = (influencers as Influencer[]).map((inf, i) =>
     `角色${i + 1}（演员：${inf.name}）：${inf.tagline}，性格：${inf.personality?.join('、') || '多样'}`
   ).join('\n')
 
-  const langNote = lang === 'en' ? 'Write all dialogue in English.' : '所有台词用中文写。'
-  const genreDesc = GENRE_PROMPT[genre] || '创意故事'
-  const styleDesc = STYLE_PROMPT[narrativeStyle] || '电影感叙事'
-  const hookDesc  = HOOK_PROMPT[hookType] || HOOK_PROMPT['midaction']
+  const langNote     = lang === 'en' ? 'Write all dialogue in English.' : '所有台词用中文写。'
+  const genreDesc    = GENRE_PROMPT[genre] || '创意故事'
+  const styleDesc    = STYLE_PROMPT[narrativeStyle] || '电影感叙事'
+  const hookDesc     = HOOK_PROMPT[hookType] || HOOK_PROMPT['midaction']
+  const subGenreDesc = SUBGENRE_PROMPT[subGenre] || ''
+  const seriesDesc   = seriesMode && seriesName
+    ? `【系列剧指令】本集是《${seriesName}》第${episodeNumber}集。${episodeNumber > 1 ? `前${episodeNumber - 1}集已铺垫悬念，本集前10秒必须解答上集悬念。` : '这是系列第一集，重点建立核心谜题。'}最后一幕必须以比本集更大的悬念结束，为下一集制造强烈期待，不得给出任何解答。`
+    : ''
 
   const clipCount = Math.max(3, Math.min(8, Math.ceil(durationS / 15)))
 
@@ -60,6 +71,10 @@ ${castDesc}
 
 【任务】
 为上述故事创作一个${clipCount}幕短剧脚本。
+
+${subGenreDesc}
+
+${seriesDesc}
 
 ${hookDesc}
 

@@ -48,8 +48,8 @@ export const UI = {
         credit:{ zh: '50积分', en: '50 credits' },
       },
       story: {
-        title: { zh: '故事短片',           en: 'Story Film' },
-        desc:  { zh: '输入剧情创意，AI生成有叙事的剧情短片', en: 'Enter a story idea, AI generates a narrative short film' },
+        title: { zh: '短剧工坊',           en: 'Short Drama' },
+        desc:  { zh: '输入剧情创意，AI生成竖屏悬疑短剧', en: 'Enter a story idea, AI generates a vertical short drama' },
         credit:{ zh: '30积分', en: '30 credits' },
       },
       script: {
@@ -104,7 +104,7 @@ export const UI = {
       edu:     { zh: '网红科普', en: 'Edu Video' },
       anime:   { zh: '动漫营销', en: 'Anime' },
       trending:{ zh: '看灵感',   en: 'Trending' },
-      story:   { zh: '故事短片', en: 'Story' },
+      story:   { zh: '短剧工坊', en: 'Short Drama' },
       script:  { zh: '自定义脚本', en: 'Script' },
       link:    { zh: '链接提取', en: 'Link' },
     },
@@ -219,11 +219,33 @@ export const UI = {
     eduDepth:       { zh: '讲解深度', en: 'Depth' },
     eduPickInf:     { zh: '选择科普网红', en: 'Choose an influencer' },
     eduInf:         { zh: '主讲网红', en: 'Influencer' },
-    // Edu steps
+    // Edu steps (legacy talk)
     eduSteps: {
       zh: ['选话题', '选网红', '平台', '预览脚本', '生成'],
       en: ['Topic', 'Influencer', 'Platform', 'Script', 'Generate'],
     },
+    // Edu Talk
+    eduTalkTitle:    { zh: '口播科普', en: 'Explainer Talk' },
+    eduTalkSubtitle: { zh: '话题 / 链接 / 论文 → 网红口播科普视频', en: 'Topic / URL / Paper → Influencer Science Video' },
+    eduTalkSteps: {
+      zh: ['输入内容', '选网红', '平台', '预览脚本', '生成'],
+      en: ['Input', 'Influencer', 'Platform', 'Script', 'Generate'],
+    },
+    eduInputModeText: { zh: '✍️ 话题/概念', en: '✍️ Topic/Concept' },
+    eduInputModeUrl:  { zh: '🔗 链接', en: '🔗 URL' },
+    eduTextPH:   { zh: '输入科普话题，如：量子纠缠、黑洞原理、CRISPR 基因编辑...', en: 'e.g. quantum entanglement, black holes, CRISPR gene editing...' },
+    eduUrlPH:    { zh: '粘贴文章链接、arXiv 论文链接...', en: 'Paste article URL or arXiv link...' },
+    eduExtracting:   { zh: 'AI 提炼内容中...', en: 'Extracting content...' },
+    eduContentTitle: { zh: '内容摘要（可编辑）', en: 'Content Summary (editable)' },
+    eduKeyPoints:    { zh: '核心要点', en: 'Key Points' },
+    // Edu Animated
+    eduAnimatedTitle:    { zh: '动画科普故事', en: 'Animated Science Story' },
+    eduAnimatedSubtitle: { zh: '把科学原理变成动画故事 · 角色演绎 + 动漫视觉', en: 'Turn science into animated stories with anime-style visuals' },
+    eduAnimatedSteps: {
+      zh: ['输入内容', '选网红', '选风格', '预览脚本', '生成'],
+      en: ['Input', 'Influencer', 'Style', 'Script', 'Generate'],
+    },
+    eduAnimatedPickInf: { zh: '选择动画主角（推荐虚拟/动漫类网红）', en: 'Choose animated character (virtual/anime recommended)' },
     // Remix
     remixTitle:     { zh: '爆款二创', en: 'Video Remix' },
     remixSubtitle:  { zh: '上传原视频，AI改编成你的网红风格', en: 'Upload a video, AI remakes it in your influencer style' },
@@ -255,8 +277,8 @@ export const UI = {
       en: ['Brand', 'Influencer', 'Style', 'Script', 'Generate'],
     },
     // Story
-    storyTitle:     { zh: '故事短片', en: 'Story Film' },
-    storySubtitle:  { zh: '输入剧情创意，AI生成有叙事的剧情短片', en: 'Enter a story idea, AI generates a narrative short film' },
+    storyTitle:     { zh: '短剧工坊', en: 'Short Drama' },
+    storySubtitle:  { zh: '输入剧情创意，AI生成竖屏悬疑短剧', en: 'Enter a story idea, AI generates a vertical short drama' },
     storyTitleOpt:  { zh: '故事标题（可选）', en: 'Story title (optional)' },
     storyIdea:      { zh: '故事创意 *', en: 'Story idea *' },
     storyCast:      { zh: '选择故事演员（最多3位，网红将扮演故事中的角色）', en: 'Choose cast (max 3, influencers will play the roles)' },
