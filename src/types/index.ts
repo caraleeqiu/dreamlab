@@ -59,13 +59,21 @@ export interface ScriptClip {
   camera_movement?: string  // 镜头运动: '固定' | '推进' | '拉远' | '摇镜' | '跟拍'
   bgm?: string              // BGM风格: '轻松欢快' | '科技感' | '励志' | '悬疑' 等
   voiceover?: string        // 旁白（与台词不同时填写）
+  consistency_anchor?: string // 跨分镜视觉锁定：角色外观+场景+光线的一句话绑定描述
+  // ── 多 Provider 路由 ──────────────────────────────────────────────────────
+  // 有角色台词 → 'kling'（角色锚定，保证跨批次一致性）
+  // 纯场景/动画/B-roll → 'seedance'（Seedance API 可用后启用）
+  provider?: 'kling' | 'seedance'
 }
 
 export interface Clip {
   id: number
   job_id: number
   clip_index: number
-  kling_task_id?: string
+  // Provider-agnostic task tracking
+  provider?: 'kling' | 'seedance'
+  task_id?: string           // unified field (maps to kling_task_id or seedance_task_id in DB)
+  kling_task_id?: string     // legacy / Kling-specific (keep for backward compat)
   status: ClipStatus
   prompt?: string
   first_frame_url?: string

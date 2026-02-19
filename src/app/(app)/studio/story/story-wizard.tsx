@@ -442,6 +442,17 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
                     )}
                   </div>
                 )}
+                {clip.consistency_anchor !== undefined && (
+                  <div className="mb-2">
+                    <p className="text-xs text-amber-600/80 mb-0.5">{lang === 'zh' ? '视觉锁定' : 'Visual anchor'}</p>
+                    <textarea
+                      value={clip.consistency_anchor}
+                      onChange={e => setScript(prev => prev ? prev.map((c, j) => j === i ? { ...c, consistency_anchor: e.target.value } : c) : prev)}
+                      rows={2}
+                      className="w-full text-xs text-amber-400/80 leading-relaxed border-l-2 border-amber-700 pl-2 bg-transparent resize-none focus:outline-none"
+                    />
+                  </div>
+                )}
                 {clip.dialogue !== undefined && (
                   <textarea
                     value={clip.dialogue}

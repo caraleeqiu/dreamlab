@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 
   // Insert one clip record per group
   const clipInserts = groups.map((_, gi) => ({
-    job_id: job.id, clip_index: gi, status: 'pending', prompt: '',
+    job_id: job.id, clip_index: gi, status: 'pending', prompt: '', provider: 'kling',
   }))
   await service.from('clips').insert(clipInserts)
 
@@ -102,8 +102,10 @@ export async function POST(req: NextRequest) {
       const actor = infMap[c.speaker] || primaryInf
       const rolePart = castRoles?.[actor.id] ? ` as ${castRoles[actor.id]}` : ''
       const bgmNote = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
+      const anchorNote = c.consistency_anchor ? `[Visual anchor: ${c.consistency_anchor}]` : ''
       const prompt = [
         stylePrefix,
+        anchorNote,
         `Scene: ${c.shot_description}.`,
         c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
         bgmNote,
@@ -125,10 +127,12 @@ export async function POST(req: NextRequest) {
           const actor = infMap[c.speaker] || primaryInf
           const rolePart = castRoles?.[actor.id] ? ` as ${castRoles[actor.id]}` : ''
           const bgmNote = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
+          const anchorNote = c.consistency_anchor ? `[Visual anchor: ${c.consistency_anchor}]` : ''
           return {
             index: si + 1,
             prompt: [
               `${stylePrefix} Shot ${si + 1}:`,
+              anchorNote,
               c.shot_description,
               c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
               bgmNote,
@@ -146,7 +150,7 @@ export async function POST(req: NextRequest) {
     const result = classifyKlingResponse(resp)
     if (result.taskId) {
       await service.from('clips')
-        .update({ status: 'submitted', kling_task_id: result.taskId })
+        .update({ status: 'submitted', provider: 'kling', task_id: result.taskId, kling_task_id: result.taskId })
         .eq('job_id', job.id).eq('clip_index', gi)
     } else {
       await failClipAndCheckJob(service, job.id, gi, result.error ?? 'Submit failed')
