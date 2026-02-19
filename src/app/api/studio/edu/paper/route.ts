@@ -6,7 +6,7 @@ import { getPresignedUrl } from '@/lib/r2'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
 import { deductCredits, failClipAndCheckJob } from '@/lib/job-service'
-import { groupClips } from '@/lib/video-utils'
+import { groupClipsByProvider, annotateProviders } from '@/lib/video-utils'
 import type { ScriptClip } from '@/types'
 
 export async function POST(req: NextRequest) {
@@ -51,23 +51,24 @@ export async function POST(req: NextRequest) {
     ? await getPresignedUrl(frontalKey)
     : influencer.frontal_image_url || ''
 
-  const clips = script as ScriptClip[]
+  // paper: character appears as PiP → force Kling for all clips
+  const clips = annotateProviders(script as ScriptClip[], { forceKling: true })
   const stylePrefix = `${influencer.name} (${influencer.tagline}), academic paper explainer. Voice: ${influencer.voice_prompt}. The diagram fills the background; character appears as a small PiP in the corner.`
 
   const callbackUrl = getCallbackUrl()
-  const groups = groupClips(clips)
+  const groups = groupClipsByProvider(clips)
 
-  const clipInserts = groups.map((_, gi) => ({
-    job_id: job.id, clip_index: gi, status: 'pending', prompt: '',
+  const clipInserts = groups.map((g, gi) => ({
+    job_id: job.id, clip_index: gi, provider: g.provider, status: 'pending', prompt: '',
   }))
   await service.from('clips').insert(clipInserts).select()
 
   await Promise.allSettled(groups.map(async (group, gi) => {
-    const groupDuration = group.reduce((s, c) => s + (c.duration || 8), 0)
+    const groupDuration = group.totalDuration
 
     let resp
-    if (group.length === 1) {
-      const c = group[0]
+    if (group.clips.length === 1) {
+      const c = group.clips[0]
       const prompt = [
         stylePrefix,
         `Scene: ${c.shot_description}`,
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
     } else {
       resp = await submitMultiShotVideo({
         imageUrl,
-        shots: group.map((c, si) => ({
+        shots: group.clips.map((c, si) => ({
           index: si + 1,
           prompt: [
             `${stylePrefix} Shot ${si + 1}:`,
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
     const result = classifyKlingResponse(resp)
     if (result.taskId) {
       await service.from('clips')
-        .update({ status: 'submitted', kling_task_id: result.taskId })
+        .update({ status: 'submitted', kling_task_id: result.taskId, task_id: result.taskId })
         .eq('job_id', job.id).eq('clip_index', gi)
     } else {
       await failClipAndCheckJob(service, job.id, gi, result.error ?? 'Submit failed')

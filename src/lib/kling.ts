@@ -97,8 +97,18 @@ export async function submitImage2Video(payload: ReturnType<typeof buildClipProm
   })
 }
 
+/**
+ * Query task status. Tries image2video endpoint first (covers the vast majority
+ * of tasks), then falls back to text2video if no task data is returned.
+ * This handles both regular Kling tasks and cinematic (全动画) text2video tasks
+ * without needing to store the task type separately.
+ */
 export async function getTaskStatus(taskId: string) {
-  return klingFetch(`/v1/videos/image2video/${taskId}`)
+  const resp = await klingFetch(`/v1/videos/image2video/${taskId}`)
+  // If the task exists and has status data, return it
+  if (resp?.data?.task_id || resp?.data?.task_status) return resp
+  // Fall back to text2video endpoint (for cinematic/全动画 tasks)
+  return klingFetch(`/v1/videos/text2video/${taskId}`)
 }
 
 // Multi-shot image-to-video — single API call for the whole script

@@ -23,6 +23,15 @@ const SUB_TYPES = [
     tags: { zh: ['动画', '故事', '动漫风格'], en: ['Animation', 'Story', 'Anime style'] },
   },
   {
+    href: '/studio/edu/cinematic',
+    emoji: '🎬',
+    title: { zh: '全动画科普', en: 'Cinematic Science' },
+    desc:  { zh: '无出镜角色，纯视觉场景动画，支持6种风格：电影/动漫/水彩/抽象/科幻/自然', en: 'No presenter — pure AI-generated cinematic scenes. 6 visual styles.' },
+    credit: { zh: '20积分', en: '20 credits' },
+    creditClass: 'text-emerald-400',
+    tags: { zh: ['全动画', '文生视频', 'Kling'], en: ['Animation', 'Text2Video', 'Kling'] },
+  },
+  {
     href: '/studio/edu/paper',
     emoji: '📄',
     title: { zh: '论文解读', en: 'Paper Explainer' },

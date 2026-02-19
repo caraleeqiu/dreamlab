@@ -105,6 +105,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       {/* 标题 */}
       <h1 className="text-xl font-bold text-white mb-1">{job.title || t(lang, UI.jobs.untitled)}</h1>
+      {job.series_name && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-violet-900/40 border border-violet-700/40 text-violet-400">
+            《{job.series_name}》{lang === 'zh' ? `第${job.episode_number}集` : `Ep ${job.episode_number}`}
+          </span>
+          {job.cliffhanger && (
+            <span className="text-xs text-zinc-500 italic truncate max-w-xs">
+              {lang === 'zh' ? '悬念：' : 'Cliffhanger: '}"{job.cliffhanger}"
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex gap-3 text-xs text-zinc-500 mb-8">
         <span>#{job.id}</span>
         <span>{job.credit_cost} {t(lang, UI.jobs.credits)}</span>

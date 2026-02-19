@@ -32,11 +32,21 @@ export async function POST(request: NextRequest) {
 async function handleCallback(task_id: string) {
   const service = await createServiceClient()
 
-  const { data: clip } = await service
+  // Look up by kling_task_id first; fall back to unified task_id field
+  let { data: clip } = await service
     .from('clips')
     .select('*, jobs(*)')
     .eq('kling_task_id', task_id)
-    .single()
+    .maybeSingle()
+
+  if (!clip) {
+    const { data: byTaskId } = await service
+      .from('clips')
+      .select('*, jobs(*)')
+      .eq('task_id', task_id)
+      .maybeSingle()
+    clip = byTaskId
+  }
 
   if (!clip) return
 
@@ -93,13 +103,58 @@ function runFfmpeg(cmd: ReturnType<typeof ffmpeg>): Promise<void> {
   })
 }
 
+// Probe common font locations (Linux/macOS/Vercel)
+const FONT_CANDIDATES = [
+  // Linux / Vercel
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+  '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+  // macOS
+  '/Library/Fonts/Arial.ttf',
+  '/System/Library/Fonts/Supplemental/Arial.ttf',
+  '/System/Library/Fonts/Helvetica.ttc',
+]
+let _resolvedFont: string | null | undefined = undefined  // undefined = not probed yet
+
+function findFont(): string | null {
+  if (_resolvedFont !== undefined) return _resolvedFont
+  for (const p of FONT_CANDIDATES) {
+    try {
+      if (fs.existsSync(p)) { _resolvedFont = p; return p }
+    } catch { /* ignore */ }
+  }
+  _resolvedFont = null
+  return null
+}
+
+/**
+ * Build a drawtext ffmpeg filter string.
+ * Returns null if no system font is available (subtitle is silently skipped).
+ */
+function buildDrawtext(text: string, yOffset = 80): string | null {
+  const fontFile = findFont()
+  const safeText = text
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .slice(0, 120)  // cap length to avoid overflow
+
+  const fontPart = fontFile ? `fontfile=${fontFile}:` : ''
+  return (
+    `drawtext=${fontPart}` +
+    `text='${safeText}':fontcolor=white:fontsize=30:` +
+    `borderw=2:bordercolor=black@0.8:` +
+    `x=(w-text_w)/2:y=h-${yOffset}`
+  )
+}
+
 /**
  * Compose a PiP clip: diagram image as full-screen background + character clip
  * in the bottom-right corner. Burns subtitle text from the dialogue.
  *
  * Layout (9:16 video at 1080×1920):
  *   - Background: diagram image scaled to fill the frame
- *   - PiP: character clip at 25% width, bottom-right, 16px margin
+ *   - PiP: character clip at 28% width, bottom-right, 20px margin
  *   - Subtitle: dialogue text at bottom, white with shadow
  */
 async function composePipClip(opts: {
@@ -115,41 +170,32 @@ async function composePipClip(opts: {
   const [wStr, hStr] = aspectRatio.split(':')
   const baseW = 1080
   const baseH = Math.round(baseW * parseInt(hStr) / parseInt(wStr))
-  const pipW = Math.round(baseW * 0.28)       // PiP at 28% of width
-  const pipX = baseW - pipW - 20              // right margin 20px
-  const pipY = baseH - Math.round(pipW * parseInt(hStr) / parseInt(wStr)) - 100  // above subtitle bar
+  const pipW = Math.round(baseW * 0.28)
+  const pipX = baseW - pipW - 20
+  const pipY = baseH - Math.round(pipW * parseInt(hStr) / parseInt(wStr)) - 110
 
-  // Escape dialogue for ffmpeg drawtext (single quotes → escaped)
-  const safeDialogue = dialogue
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/:/g, '\\:')
+  const subtitleFilter = dialogue.trim() ? buildDrawtext(dialogue) : null
 
   if (diagramImagePath) {
     // Full PiP: diagram bg + character overlay + subtitle
-    const filterComplex = [
-      // Scale diagram to fill frame
+    const filters: string[] = [
       `[0:v]scale=${baseW}:${baseH},setsar=1[bg]`,
-      // Scale character video into PiP size, rounded box
       `[1:v]scale=${pipW}:-2[pip]`,
-      // Overlay PiP on background
-      `[bg][pip]overlay=${pipX}:${pipY}[composed]`,
-      // Burn subtitle at bottom
-      `[composed]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:` +
-        `text='${safeDialogue}':fontcolor=white:fontsize=32:` +
-        `borderw=2:bordercolor=black:` +
-        `x=(w-text_w)/2:y=h-80[out]`,
-    ].join(';')
+      `[bg][pip]overlay=${pipX}:${pipY}${subtitleFilter ? '[composed]' : '[out]'}`,
+    ]
+    if (subtitleFilter) {
+      filters.push(`[composed]${subtitleFilter}[out]`)
+    }
 
     await runFfmpeg(
       ffmpeg()
-        .input(diagramImagePath)           // [0] diagram image (loop to video duration)
+        .input(diagramImagePath)
         .inputOptions(['-loop', '1'])
-        .input(characterVideoPath)          // [1] character clip
-        .complexFilter(filterComplex, 'out')
+        .input(characterVideoPath)
+        .complexFilter(filters.join(';'), 'out')
         .outputOptions([
           '-map', '[out]',
-          '-map', '1:a?',                  // keep audio from character clip if present
+          '-map', '1:a?',
           '-c:v', 'libx264',
           '-crf', '23',
           '-preset', 'fast',
@@ -159,13 +205,13 @@ async function composePipClip(opts: {
         .output(outputPath),
     )
   } else {
-    // No diagram: just burn subtitle on character clip
-    const filterComplex = [
-      `[0:v]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:` +
-        `text='${safeDialogue}':fontcolor=white:fontsize=32:` +
-        `borderw=2:bordercolor=black:` +
-        `x=(w-text_w)/2:y=h-80[out]`,
-    ].join(';')
+    // No diagram: optionally burn subtitle on character clip
+    if (!subtitleFilter) {
+      // Nothing to do — just copy the file
+      fs.copyFileSync(characterVideoPath, outputPath)
+      return
+    }
+    const filterComplex = `[0:v]${subtitleFilter}[out]`
 
     await runFfmpeg(
       ffmpeg()
