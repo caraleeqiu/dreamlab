@@ -63,7 +63,14 @@ export async function POST(req: NextRequest) {
     episode_number: seriesMode ? (episodeNumber || null) : null,
     cliffhanger: derivedCliffhanger,
   }).select().single()
-  if (jobErr) return apiError(jobErr.message, 500)
+  if (jobErr) {
+    await service.rpc('add_credits', {
+      p_user_id: user.id,
+      p_amount: CREDIT_COSTS.story,
+      p_reason: `refund:job_create_failed`,
+    })
+    return apiError(jobErr.message, 500)
+  }
 
   const infMap = Object.fromEntries((influencers as Influencer[]).map(inf => [inf.slug, inf]))
   const primaryInf = influencers[0] as Influencer

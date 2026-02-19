@@ -40,6 +40,7 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
   const [loadingScript, setLoadingScript] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [extractError, setExtractError] = useState(false)
 
   const CREDIT_COST = 50
 
@@ -54,7 +55,7 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
       id: 'wear', emoji: '👗',
       label: '穿', labelEn: 'Fashion',
       desc: '服装·美妆·时尚配饰', descEn: 'Clothing · Beauty · Fashion accessories',
-      recommended: ['ellie', 'aria', 'loopy'],
+      recommended: ['marin', 'ellie', 'loopy'],
     },
     {
       id: 'play', emoji: '🎮',
@@ -66,7 +67,7 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
       id: 'use', emoji: '🔧',
       label: '用', labelEn: 'Tools',
       desc: '数码·工具·家居·效率类产品', descEn: 'Tech · Tools · Home · Productivity',
-      recommended: ['zane', 'kai', 'quinn'],
+      recommended: ['senku', 'quinn', 'atlas'],
     },
   ]
 
@@ -108,11 +109,18 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
         if (data.suggestedCategory) setProductCategory(data.suggestedCategory)
       }
     } catch {
-      // silently continue — user can fill manually
+      setExtractError(true)
     } finally {
       setExtracting(false)
       setStep('category')
     }
+  }
+
+  function updateClipDialogue(index: number, value: string) {
+    setScript(prev => prev
+      ? prev.map((clip, i) => i === index ? { ...clip, dialogue: value } : clip)
+      : prev
+    )
   }
 
   async function loadScript() {
@@ -252,6 +260,16 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
 
       {step === 'category' && (
         <div className="space-y-4">
+          {extractError && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-900/20 border border-amber-700/40">
+              <span className="text-amber-400 mt-0.5">⚠</span>
+              <p className="text-xs text-amber-300">
+                {lang === 'zh'
+                  ? 'AI 识别失败，请手动填写下方产品信息'
+                  : 'AI extraction failed — please fill in the product info below manually'}
+              </p>
+            </div>
+          )}
           <p className="text-sm text-zinc-400">
             {lang === 'zh' ? '你要做哪类产品的营销视频？' : 'What type of product are you marketing?'}
           </p>
@@ -445,18 +463,29 @@ export default function AnimeWizard({ lang, credits, influencers }: Props) {
 
       {step === 'script' && script && (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-400">
-            {t(lang, UI.wizard.scriptPreview)}（{VIDEO_FORMATS.find(f => f.id === videoFormat)?.[lang === 'zh' ? 'label' : 'labelEn']} · {lang === 'zh' ? `共${script.length}段` : `${script.length} segments`}）
-          </p>
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-zinc-400">
+              {t(lang, UI.wizard.scriptPreview)}（{VIDEO_FORMATS.find(f => f.id === videoFormat)?.[lang === 'zh' ? 'label' : 'labelEn']} · {lang === 'zh' ? `共${script.length}段` : `${script.length} segments`}）
+            </p>
+            <span className="text-xs text-zinc-600">{lang === 'zh' ? '台词可直接编辑' : 'Dialogue is editable'}</span>
+          </div>
+          <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
             {script.map((clip, i) => (
               <div key={i} className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-400">{lang === 'zh' ? '场景' : 'Scene'} {i + 1}</span>
                   <span className="text-xs text-zinc-500">{clip.duration}s</span>
                 </div>
-                {clip.dialogue && <p className="text-sm text-zinc-200 leading-relaxed">{clip.dialogue}</p>}
-                {clip.shot_description && <p className="text-xs text-zinc-500 mt-1 italic">{clip.shot_description}</p>}
+                {clip.shot_description && (
+                  <p className="text-xs text-zinc-500 italic mb-2">{clip.shot_description}</p>
+                )}
+                <textarea
+                  rows={3}
+                  value={clip.dialogue ?? ''}
+                  onChange={e => updateClipDialogue(i, e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-md p-2 text-sm text-zinc-200 placeholder:text-zinc-600 resize-none focus:outline-none focus:border-violet-500 leading-relaxed"
+                  placeholder={lang === 'zh' ? '台词...' : 'Dialogue...'}
+                />
               </div>
             ))}
           </div>

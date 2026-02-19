@@ -61,6 +61,14 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
   const platforms = PLATFORMS[lang]
   const CREDIT_COST = 30
 
+  // Story cast: drama leads first, then human/virtual, then others
+  const STORY_RECOMMENDED = ['aria', 'kai', 'tanjiro', 'atlas']
+  const sortedCastInfluencers = [
+    ...influencers.filter(i => STORY_RECOMMENDED.includes(i.slug ?? '')),
+    ...influencers.filter(i => !STORY_RECOMMENDED.includes(i.slug ?? '') && (i.type === 'human' || i.type === 'virtual')),
+    ...influencers.filter(i => !STORY_RECOMMENDED.includes(i.slug ?? '') && i.type !== 'human' && i.type !== 'virtual'),
+  ]
+
   function savePrefs() {
     fetch('/api/user/preferences', {
       method: 'PATCH',
@@ -346,7 +354,7 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
         <div className="space-y-4">
           <p className="text-sm text-zinc-400">{t(lang, UI.wizard.storyCast)}</p>
           <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
-            {influencers.map(inf => {
+            {sortedCastInfluencers.map(inf => {
               const selected = castInfluencers.find(i => i.id === inf.id)
               const disabled = !selected && castInfluencers.length >= 3
               return (

@@ -29,7 +29,14 @@ export async function POST(req: NextRequest) {
     title: lang === 'en' ? `Science: ${topic}` : `科普: ${topic}`, platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [influencerId], duration_s: durationS, script, credit_cost: CREDIT_COSTS.edu,
   }).select().single()
-  if (jobErr) return apiError(jobErr.message, 500)
+  if (jobErr) {
+    await service.rpc('add_credits', {
+      p_user_id: user.id,
+      p_amount: CREDIT_COSTS.edu,
+      p_reason: `refund:job_create_failed`,
+    })
+    return apiError(jobErr.message, 500)
+  }
 
   const clips = await createClipRecords(service, job.id, script as ScriptClip[])
   const depthDesc = depth === 'simple' ? 'accessible beginner-friendly' : depth === 'deep' ? 'expert-level analytical' : 'intermediate educational'

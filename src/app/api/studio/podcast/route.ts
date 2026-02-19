@@ -55,7 +55,14 @@ export async function POST(request: NextRequest) {
     .select()
     .single()
 
-  if (jobError || !job) return apiError(jobError?.message ?? (language === 'en' ? 'Failed to create job' : '创建任务失败'), 500)
+  if (jobError || !job) {
+    await service.rpc('add_credits', {
+      p_user_id: user.id,
+      p_amount: CREDIT_COSTS.podcast,
+      p_reason: `refund:job_create_failed`,
+    })
+    return apiError(jobError?.message ?? (language === 'en' ? 'Failed to create job' : '创建任务失败'), 500)
+  }
 
   await supabase.from('jobs').update({ status: 'generating' }).eq('id', job.id)
 
