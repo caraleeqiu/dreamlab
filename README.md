@@ -160,7 +160,11 @@ wizard → POST /api/studio/[type]
 - **Visual consistency (`consistency_anchor`)**: Story `ScriptClip` includes a `consistency_anchor` string (character appearance + location + lighting). Injected into every Kling prompt batch as `[Visual anchor: ...]` to maintain cross-clip character/scene coherence.
 - **Podcast wizard 4-tab entry**: Step 0 has 4 top-level modes — 🔥 Trending (topic list + conversation angle input simultaneously), ✍️ Write (textarea), 🔗 URL (with source hints and `fallback: 'write'` error handling), 📄 PDF. URL extraction uses Jina AI reader + Twitter oEmbed for tweets; platform-blocked sources (WeChat, Xiaohongshu, video platforms) return friendly errors and auto-switch to Write mode.
 - **Link extract via Jina AI**: Replaced raw fetch/HTML-strip (8K chars) with Jina AI reader (60K chars). Same platform detection as podcast — WeChat/Xiaohongshu/Bilibili/Douyin return `fallback: 'script'` errors; Twitter uses oEmbed.
-- **User preferences persistence**: `profiles.preferences JSONB` stores per-module wizard defaults (`{ podcast: {platform, duration, format}, link: {platform, duration} }`). `PATCH /api/user/preferences` merges module-level updates. Wizards pre-fill state from `initialPrefs` prop and silently save on key step transitions.
+- **User preferences persistence**: `profiles.preferences JSONB` stores per-module wizard defaults (`{ podcast: {platform, duration, format}, link: {platform, duration}, story: {platform, duration, narrativeStyle} }`). `PATCH /api/user/preferences` merges module-level updates. Wizards pre-fill state from `initialPrefs` prop and silently save on key step transitions.
+- **Job type filter**: `/jobs` page has filter chips (All / Podcast / Story / Edu / Link / Anime / Script). Empty state distinguishes between "no active tasks" and "no tasks of this type".
+- **Job detail failure UX**: Failed jobs show error panel with error message, credit refund confirmation, and "Create again" retry button linking back to the appropriate studio.
+- **Series panel enhancements**: `SeriesPanel` shows episode count, last episode's cliffhanger in violet italic, bilingual continue button and episode pills.
+- **Edu Talk URL hints**: Source hints panel below URL input in Talk wizard (supported: articles, arXiv, Wikipedia; unsupported: WeChat, Xiaohongshu, video platforms).
 
 ### Kling API 3.0 Reference
 

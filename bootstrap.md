@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-19 (Round 17)
+> **最后更新**: 2026-02-19 (Round 18)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -35,6 +35,13 @@
 - **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
 - **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
 - Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 18 更新（Job筛选 + Story偏好 + 失败重试 + 系列面板增强）：**
+- **Job 列表类型筛选**：`/jobs` 页顶部新增 7 个筛选芯片（全部/播客/故事/科普/链接/动漫/脚本），`filteredJobs` 计算变量；空列表区分"无任务"与"此类型无任务"
+- **Job 详情失败面板**：failed 状态下显示 XCircle + 错误信息 + 积分退还确认 + "重新创建"按钮（跳回对应 Studio）
+- **Story wizard 偏好持久化**：新增 `initialPrefs` prop，从 `profiles.preferences.story` 回填 narrativeStyle/platform/duration；platform→script 过渡时静默调用 `PATCH /api/user/preferences`
+- **Story 系列面板增强**：中英双语，显示集数 + 最后一集悬念（紫色斜体），"继续创作"按钮双语（`继续 第N集` / `Ep N →`），集数胶囊双语
+- **Edu Talk URL 来源提示**：URL 输入框下方新增中英分开来源说明板（✅ 支持 / ❌ 不支持）
 
 **Round 17 更新（Link Jina 升级 + 用户偏好持久化）：**
 - **Link extract 重写**：从 raw fetch（8K 字符）升级为 Jina AI reader（60K），平台检测同播客（微信/小红书/B站/抖音/Twitter），友好错误 + `fallback: 'script'` 字段
@@ -105,8 +112,8 @@ source dev.sh  # 重启 dev server
 | 🟢 | 用户偏好持久化（profiles.preferences + /api/user/preferences） | ✅ 完成 |
 | 🟢 | DB 迁移 001+002+003 全部执行完毕 | ✅ 完成 |
 | 🔴 | 端到端测试（Kling webhook → stitch → 视频完成全链路） | 待测试 |
-| 🟡 | Story wizard 偏好持久化（platform/duration/narrativeStyle） | 待做 |
-| 🟡 | Job 列表页类型筛选 | 待做 |
+| 🟢 | Story wizard 偏好持久化（platform/duration/narrativeStyle） | ✅ 完成 |
+| 🟢 | Job 列表页类型筛选 | ✅ 完成 |
 | 🟡 | Kling 自定义声线（Subject Library voice_id 绑定） | 待做 |
 | 🟡 | Stripe 配置（STRIPE_PUBLISHABLE_KEY 还空着） | 待做 |
 | 🟡 | blockProvider 持久化（当前 in-process Map，cold start 会重置） | 待做 |
