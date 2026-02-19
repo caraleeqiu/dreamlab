@@ -50,6 +50,84 @@ function runFfmpeg(cmd: ReturnType<typeof ffmpeg>): Promise<void> {
   })
 }
 
+function getVideoDuration(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, meta) => {
+      if (err) reject(err)
+      else resolve((meta.format.duration as number | undefined) ?? 0)
+    })
+  })
+}
+
+/**
+ * Concat clips with 0.3s crossfade (xfade + acrossfade) for a polished cut.
+ * Falls back to hard concat if xfade fails (codec mismatch, very short clips, etc).
+ */
+async function crossfadeConcat(inputPaths: string[], outputPath: string, tmpDir: string): Promise<void> {
+  if (inputPaths.length === 1) {
+    fs.copyFileSync(inputPaths[0], outputPath)
+    return
+  }
+
+  const FADE = 0.3
+
+  try {
+    // Normalize all clips to consistent libx264/aac so xfade filter works
+    const normPaths = await Promise.all(inputPaths.map(async (p, i) => {
+      const normPath = path.join(tmpDir, `norm_${i}.mp4`)
+      await runFfmpeg(
+        ffmpeg().input(p)
+          .outputOptions([
+            '-vf', 'scale=1080:-2,fps=24,format=yuv420p',
+            '-c:v', 'libx264', '-crf', '22', '-preset', 'fast',
+            '-c:a', 'aac', '-ar', '44100', '-ac', '2',
+          ])
+          .output(normPath),
+      )
+      return normPath
+    }))
+
+    const durations = await Promise.all(normPaths.map(getVideoDuration))
+
+    // Build xfade + acrossfade filter chain
+    const filters: string[] = []
+    let cumulativeDur = 0
+
+    for (let i = 1; i < normPaths.length; i++) {
+      const vPrev = i === 1 ? '[0:v]' : `[vx${i - 1}]`
+      const aPrev = i === 1 ? '[0:a]' : `[ax${i - 1}]`
+      const isLast = i === normPaths.length - 1
+      const vOut = isLast ? '[vout]' : `[vx${i}]`
+      const aOut = isLast ? '[aout]' : `[ax${i}]`
+
+      cumulativeDur += durations[i - 1]
+      const offset = Math.max(0, cumulativeDur - FADE * i)
+
+      filters.push(`${vPrev}[${i}:v]xfade=transition=fade:duration=${FADE}:offset=${offset.toFixed(3)}${vOut}`)
+      filters.push(`${aPrev}[${i}:a]acrossfade=d=${FADE}${aOut}`)
+    }
+
+    const cmd = ffmpeg()
+    for (const p of normPaths) cmd.input(p)
+
+    await runFfmpeg(
+      cmd
+        .complexFilter(filters, ['vout', 'aout'])
+        .outputOptions(['-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-crf', '22', '-preset', 'fast', '-c:a', 'aac'])
+        .output(outputPath),
+    )
+    logger.info('crossfade concat complete', { clips: normPaths.length })
+  } catch (err) {
+    // Fallback: hard concat
+    logger.warn('crossfade failed, falling back to hard concat', { err: String(err) })
+    const listPath = path.join(tmpDir, 'concat_fallback.txt')
+    fs.writeFileSync(listPath, inputPaths.map(p => `file '${p}'`).join('\n'))
+    await runFfmpeg(
+      ffmpeg().input(listPath).inputOptions(['-f', 'concat', '-safe', '0']).outputOptions(['-c', 'copy']).output(outputPath),
+    )
+  }
+}
+
 const FONT_CANDIDATES = [
   '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
@@ -209,15 +287,7 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
     }
 
     const finalPath = path.join(tmpDir, 'final.mp4')
-    if (processedPaths.length === 1) {
-      fs.copyFileSync(processedPaths[0], finalPath)
-    } else {
-      const listPath = path.join(tmpDir, 'concat.txt')
-      fs.writeFileSync(listPath, processedPaths.map(p => `file '${p}'`).join('\n'))
-      await runFfmpeg(
-        ffmpeg().input(listPath).inputOptions(['-f', 'concat', '-safe', '0']).outputOptions(['-c', 'copy']).output(finalPath),
-      )
-    }
+    await crossfadeConcat(processedPaths, finalPath, tmpDir)
 
     const finalUrl = await uploadToR2(`jobs/${jobId}/final.mp4`, fs.readFileSync(finalPath), 'video/mp4')
     await service.from('jobs').update({ status: 'done', final_video_url: finalUrl, updated_at: new Date().toISOString() }).eq('id', jobId)

@@ -92,6 +92,16 @@ export async function POST(req: NextRequest) {
   }))
   await service.from('clips').insert(clipInserts)
 
+  // Subject Library: element_id for character consistency; voice_id for fixed timbre
+  const elementEntry = primaryInf.kling_element_id
+    ? { element_id: primaryInf.kling_element_id }
+    : { frontal_image_url: imageUrl }
+  const voiceList = primaryInf.kling_element_voice_id
+    ? [{ voice_id: primaryInf.kling_element_voice_id }]
+    : undefined
+
+  const MOTION_SUFFIX = 'natural micro-movements, realistic breathing, subtle environmental motion, dynamic cinematic atmosphere'
+
   // Build style prefix for prompts
   const stylePrefix = [
     `${primaryInf.name} (${primaryInf.tagline}), ${styleVisual}, ${genre} short film.`,
@@ -118,21 +128,25 @@ export async function POST(req: NextRequest) {
       const rolePart = castRoles?.[actor.id] ? ` as ${castRoles[actor.id]}` : ''
       const bgmNote = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
       const anchorNote = c.consistency_anchor ? `[Visual anchor: ${c.consistency_anchor}]` : ''
+      const sceneNote = c.scene_anchor ? `[Scene anchor: ${c.scene_anchor}]` : ''
       return {
         kind: 'single' as const,
         groupIndex: gi,
         imageUrl,
         prompt: [
-          stylePrefix, anchorNote,
+          stylePrefix, anchorNote, sceneNote,
           `Scene: ${c.shot_description}.`,
           c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
           bgmNote,
+          MOTION_SUFFIX,
           'Vertical format 9:16, cinematic quality, mystery atmosphere.',
         ].filter(Boolean).join(' '),
         shotType: 'intelligence' as const,
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
         callbackUrl,
+        elementList: [elementEntry],
+        voiceList,
       }
     } else {
       return {
@@ -144,13 +158,15 @@ export async function POST(req: NextRequest) {
           const rolePart = castRoles?.[actor.id] ? ` as ${castRoles[actor.id]}` : ''
           const bgmNote = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
           const anchorNote = c.consistency_anchor ? `[Visual anchor: ${c.consistency_anchor}]` : ''
+          const sceneNote = c.scene_anchor ? `[Scene anchor: ${c.scene_anchor}]` : ''
           return {
             index: si + 1,
             prompt: [
               `${stylePrefix} Shot ${si + 1}:`,
-              anchorNote, c.shot_description,
+              anchorNote, sceneNote, c.shot_description,
               c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
               bgmNote,
+              MOTION_SUFFIX,
             ].filter(Boolean).join(' '),
             duration: c.duration || 5,
           }
@@ -159,6 +175,8 @@ export async function POST(req: NextRequest) {
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
         callbackUrl,
+        elementList: [elementEntry],
+        voiceList,
       }
     }
   }
@@ -167,8 +185,8 @@ export async function POST(req: NextRequest) {
   const group0Payload = buildGroupPayload(groups[0], 0)
   const resp0 = await submitMultiShotVideo(
     group0Payload.kind === 'single'
-      ? { imageUrl: group0Payload.imageUrl, prompt: group0Payload.prompt, shotType: group0Payload.shotType, totalDuration: group0Payload.totalDuration, aspectRatio: group0Payload.aspectRatio, callbackUrl }
-      : { imageUrl: group0Payload.imageUrl, shots: group0Payload.shots, shotType: group0Payload.shotType, totalDuration: group0Payload.totalDuration, aspectRatio: group0Payload.aspectRatio, callbackUrl }
+      ? { imageUrl: group0Payload.imageUrl, prompt: group0Payload.prompt, shotType: group0Payload.shotType, totalDuration: group0Payload.totalDuration, aspectRatio: group0Payload.aspectRatio, elementList: group0Payload.elementList, voiceList: group0Payload.voiceList, callbackUrl }
+      : { imageUrl: group0Payload.imageUrl, shots: group0Payload.shots, shotType: group0Payload.shotType, totalDuration: group0Payload.totalDuration, aspectRatio: group0Payload.aspectRatio, elementList: group0Payload.elementList, voiceList: group0Payload.voiceList, callbackUrl }
   )
   const result0 = classifyKlingResponse(resp0)
   if (result0.taskId) {

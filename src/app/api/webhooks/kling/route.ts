@@ -182,12 +182,17 @@ async function submitNextDeferredClip(
   }
 
   // Build submitMultiShotVideo params from deferred payload
+  const elementList = deferred.elementList as Array<{ element_id?: string; frontal_image_url?: string }> | undefined
+  const voiceList = deferred.voiceList as Array<{ voice_id: string }> | undefined
+
   const baseParams = {
     imageUrl: deferred.imageUrl as string,
     totalDuration: deferred.totalDuration as number,
     aspectRatio: deferred.aspectRatio as string,
     callbackUrl: deferred.callbackUrl as string,
     firstFrameUrl,  // the chain anchor
+    elementList,
+    voiceList,
   }
 
   let resp: unknown

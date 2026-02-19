@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { submitSimpleVideo } from '@/lib/kling'
+import { submitMultiShotVideo } from '@/lib/kling'
+import { classifyKlingResponse } from '@/lib/video-router'
+import { groupClips } from '@/lib/video-utils'
+import { getPresignedUrl } from '@/lib/r2'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
-import { deductCredits, createClipRecords } from '@/lib/job-service'
+import { deductCredits, failClipAndCheckJob } from '@/lib/job-service'
 import type { ScriptClip } from '@/types'
+
+// Micro-motion suffix — added to every prompt to reduce the "frozen mannequin" AI feel
+const MOTION_SUFFIX = 'natural micro-movements while speaking, subtle hand gestures, realistic breathing, gentle environmental motion in background'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -38,17 +44,87 @@ export async function POST(req: NextRequest) {
     return apiError(jobErr.message, 500)
   }
 
-  const clips = await createClipRecords(service, job.id, script as ScriptClip[])
+  const frontalKey = influencer.frontal_image_url?.split('/dreamlab-assets/')[1]
+  const imageUrl = frontalKey
+    ? await getPresignedUrl(frontalKey)
+    : influencer.frontal_image_url || ''
+
+  // Subject Library: use element_id if registered, else frontal_image_url fallback
+  const elementEntry = influencer.kling_element_id
+    ? { element_id: influencer.kling_element_id }
+    : { frontal_image_url: imageUrl }
+  const voiceList = influencer.kling_element_voice_id
+    ? [{ voice_id: influencer.kling_element_voice_id }]
+    : undefined
+
   const depthDesc = depth === 'simple' ? 'accessible beginner-friendly' : depth === 'deep' ? 'expert-level analytical' : 'intermediate educational'
   const callbackUrl = getCallbackUrl()
+  const clips = script as ScriptClip[]
+  const groups = groupClips(clips)
+  const stylePrefix = `${influencer.name} (${influencer.tagline}), ${depthDesc} educational content. Voice: ${influencer.voice_prompt}.`
 
-  await Promise.allSettled((script as ScriptClip[]).map(async (clip) => {
-    const prompt = `${clip.shot_description}. ${influencer.name} presents: ${influencer.speaking_style || 'engaging'}. [VOICE: ${influencer.voice_prompt}]. ${depthDesc}. "${clip.dialogue}"`
-    const resp = await submitSimpleVideo({ prompt, imageUrl: influencer.frontal_image_url || '', durationS: clip.duration, aspectRatio: aspectRatio || '9:16', callbackUrl })
-    const taskId = resp?.data?.task_id
-    if (taskId && clips) {
-      await service.from('clips').update({ status: 'submitted', kling_task_id: taskId, prompt })
-        .eq('job_id', job.id).eq('clip_index', clip.index)
+  const clipInserts = groups.map((_, gi) => ({
+    job_id: job.id, clip_index: gi, status: 'pending', prompt: '', provider: 'kling',
+  }))
+  await service.from('clips').insert(clipInserts)
+
+  await Promise.allSettled(groups.map(async (group, gi) => {
+    const groupDuration = Math.min(group.reduce((s, c) => s + (c.duration || 5), 0), 15)
+
+    let resp
+    if (group.length === 1) {
+      const c = group[0]
+      const anchorNote = c.consistency_anchor ? `[Scene anchor: ${c.consistency_anchor}]` : ''
+      const prompt = [
+        stylePrefix, anchorNote,
+        `Scene: ${c.shot_description}.`,
+        c.dialogue ? `${influencer.name} explains: "${c.dialogue}"` : '',
+        MOTION_SUFFIX,
+        'Vertical format 9:16, educational presentation quality.',
+      ].filter(Boolean).join(' ')
+
+      resp = await submitMultiShotVideo({
+        imageUrl,
+        prompt,
+        shotType: 'intelligence',
+        totalDuration: groupDuration,
+        aspectRatio: aspectRatio || '9:16',
+        elementList: [elementEntry],
+        voiceList,
+        callbackUrl,
+      })
+    } else {
+      resp = await submitMultiShotVideo({
+        imageUrl,
+        shots: group.map((c, si) => {
+          const anchorNote = c.consistency_anchor ? `[Scene anchor: ${c.consistency_anchor}]` : ''
+          return {
+            index: si + 1,
+            prompt: [
+              `${stylePrefix} Shot ${si + 1}:`,
+              anchorNote, c.shot_description,
+              c.dialogue ? `${influencer.name} explains: "${c.dialogue}"` : '',
+              MOTION_SUFFIX,
+            ].filter(Boolean).join(' '),
+            duration: c.duration || 5,
+          }
+        }),
+        shotType: 'customize',
+        totalDuration: groupDuration,
+        aspectRatio: aspectRatio || '9:16',
+        elementList: [elementEntry],
+        voiceList,
+        callbackUrl,
+      })
+    }
+
+    const result = classifyKlingResponse(resp)
+    if (result.taskId) {
+      await service.from('clips')
+        .update({ status: 'submitted', provider: 'kling', kling_task_id: result.taskId, task_id: result.taskId })
+        .eq('job_id', job.id).eq('clip_index', gi)
+    } else {
+      await failClipAndCheckJob(service, job.id, gi, result.error ?? 'Submit failed')
     }
   }))
 

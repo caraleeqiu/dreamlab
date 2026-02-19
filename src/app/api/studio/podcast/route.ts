@@ -107,27 +107,39 @@ export async function POST(request: NextRequest) {
     const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : inf.frontal_image_url || ''
     const stylePrefix = `${inf.name} (${inf.tagline}). Voice: ${inf.voice_prompt}.`
 
+    // Subject Library: element_id for character consistency; voice_id for fixed timbre
+    const elementEntry = inf.kling_element_id
+      ? { element_id: inf.kling_element_id }
+      : { frontal_image_url: imageUrl }
+    const voiceList = inf.kling_element_voice_id
+      ? [{ voice_id: inf.kling_element_voice_id }]
+      : undefined
+
+    const MOTION_SUFFIX = 'natural hand gestures while speaking, slight lean forward for emphasis, occasional eye movement, real breathing visible, soft studio bokeh with gentle background motion'
+
     const groups = groupClips(clips)
 
     // clip_index tracks group index (matches anime/edu pattern)
     const clipInserts = groups.map((_, gi) => ({
-      job_id: job.id, clip_index: gi, status: 'pending', prompt: '',
+      job_id: job.id, clip_index: gi, status: 'pending', prompt: '', provider: 'kling',
     }))
     await service.from('clips').insert(clipInserts)
 
     await Promise.allSettled(groups.map(async (group, gi) => {
-      const groupDuration = group.reduce((s, c) => s + (c.duration || 15), 0)
+      const groupDuration = Math.min(group.reduce((s, c) => s + (c.duration || 15), 0), 15)
 
       let resp
       if (group.length === 1) {
         const c = group[0]
         const cameraTag = [c.shot_type, c.camera_movement].filter(Boolean).join(', ')
+        const anchorNote = c.consistency_anchor ? `[Scene anchor: ${c.consistency_anchor}]` : ''
         const prompt = [
-          stylePrefix,
+          stylePrefix, anchorNote,
           cameraTag ? `[${cameraTag}]` : '',
           `Scene: ${c.shot_description}`,
           c.dialogue ? `${inf.name} says: "${c.dialogue}"` : '',
-          'Podcast talking head, professional studio.',
+          MOTION_SUFFIX,
+          'Podcast talking head, soft-lit professional studio.',
         ].filter(Boolean).join(' ')
 
         resp = await submitMultiShotVideo({
@@ -136,6 +148,8 @@ export async function POST(request: NextRequest) {
           shotType: 'intelligence',
           totalDuration: groupDuration,
           aspectRatio: aspect_ratio || '9:16',
+          elementList: [elementEntry],
+          voiceList,
           callbackUrl,
         })
       } else {
@@ -143,13 +157,16 @@ export async function POST(request: NextRequest) {
           imageUrl,
           shots: group.map((c, si) => {
             const cameraTag = [c.shot_type, c.camera_movement].filter(Boolean).join(', ')
+            const anchorNote = c.consistency_anchor ? `[Scene anchor: ${c.consistency_anchor}]` : ''
             return {
               index: si + 1,
               prompt: [
                 `${stylePrefix} Shot ${si + 1}:`,
+                anchorNote,
                 cameraTag ? `[${cameraTag}]` : '',
                 c.shot_description,
                 c.dialogue ? `${inf.name} says: "${c.dialogue}"` : '',
+                MOTION_SUFFIX,
               ].filter(Boolean).join(' '),
               duration: c.duration || 15,
             }
@@ -157,6 +174,8 @@ export async function POST(request: NextRequest) {
           shotType: 'customize',
           totalDuration: groupDuration,
           aspectRatio: aspect_ratio || '9:16',
+          elementList: [elementEntry],
+          voiceList,
           callbackUrl,
         })
       }

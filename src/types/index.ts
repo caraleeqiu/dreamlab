@@ -60,6 +60,7 @@ export interface ScriptClip {
   bgm?: string              // BGM风格: '轻松欢快' | '科技感' | '励志' | '悬疑' 等
   voiceover?: string        // 旁白（与台词不同时填写）
   consistency_anchor?: string // 跨分镜视觉锁定：角色外观+场景+光线的一句话绑定描述
+  scene_anchor?: string       // 纯场景环境锚定（不含角色），同一地点所有幕共享
   // ── 多 Provider 路由 ──────────────────────────────────────────────────────
   // 有角色台词 → 'kling'（角色锚定，保证跨批次一致性）
   // 纯场景/动画/B-roll → 'seedance'（Seedance API 可用后启用）

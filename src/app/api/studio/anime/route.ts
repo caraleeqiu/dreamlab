@@ -61,23 +61,35 @@ export async function POST(req: NextRequest) {
     return apiError(jobErr.message, 500)
   }
 
+  // Subject Library: element_id for character consistency; voice_id for fixed timbre
+  const elementEntry = influencer.kling_element_id
+    ? { element_id: influencer.kling_element_id }
+    : { frontal_image_url: imageUrl }
+  const voiceList = influencer.kling_element_voice_id
+    ? [{ voice_id: influencer.kling_element_voice_id }]
+    : undefined
+
+  const MOTION_SUFFIX = 'natural micro-movements, subtle expressive gestures, dynamic environment with gentle background motion'
   const callbackUrl = getCallbackUrl()
   const groups = groupClips(clips)
 
   const clipInserts = groups.map((_, gi) => ({
-    job_id: job.id, clip_index: gi, status: 'pending', prompt: '',
+    job_id: job.id, clip_index: gi, status: 'pending', prompt: '', provider: 'kling',
   }))
   const { data: clipRows } = await service.from('clips').insert(clipInserts).select()
 
   await Promise.allSettled(groups.map(async (group, gi) => {
-    const groupDuration = group.reduce((s, c) => s + (c.duration || 5), 0)
+    const groupDuration = Math.min(group.reduce((s, c) => s + (c.duration || 5), 0), 15)
 
     let resp
     if (group.length === 1) {
+      const c = group[0]
+      const anchorNote = c.consistency_anchor ? `[Scene anchor: ${c.consistency_anchor}]` : ''
       const prompt = [
-        stylePrefix,
-        `Scene: ${group[0].shot_description}`,
-        group[0].dialogue ? `${influencer.name} says: "${group[0].dialogue}"` : '',
+        stylePrefix, anchorNote,
+        `Scene: ${c.shot_description}`,
+        c.dialogue ? `${influencer.name} says: "${c.dialogue}"` : '',
+        MOTION_SUFFIX,
         'Vertical format, premium anime animation.',
       ].filter(Boolean).join(' ')
 
@@ -87,23 +99,31 @@ export async function POST(req: NextRequest) {
         shotType: 'intelligence',
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
+        elementList: [elementEntry],
+        voiceList,
         callbackUrl,
       })
     } else {
       resp = await submitMultiShotVideo({
         imageUrl,
-        shots: group.map((c, si) => ({
-          index: si + 1,
-          prompt: [
-            `${stylePrefix} Shot ${si + 1}:`,
-            c.shot_description,
-            c.dialogue ? `${influencer.name} says: "${c.dialogue}"` : '',
-          ].filter(Boolean).join(' '),
-          duration: c.duration || 5,
-        })),
+        shots: group.map((c, si) => {
+          const anchorNote = c.consistency_anchor ? `[Scene anchor: ${c.consistency_anchor}]` : ''
+          return {
+            index: si + 1,
+            prompt: [
+              `${stylePrefix} Shot ${si + 1}:`,
+              anchorNote, c.shot_description,
+              c.dialogue ? `${influencer.name} says: "${c.dialogue}"` : '',
+              MOTION_SUFFIX,
+            ].filter(Boolean).join(' '),
+            duration: c.duration || 5,
+          }
+        }),
         shotType: 'customize',
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
+        elementList: [elementEntry],
+        voiceList,
         callbackUrl,
       })
     }

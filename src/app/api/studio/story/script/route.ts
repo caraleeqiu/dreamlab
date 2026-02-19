@@ -110,14 +110,17 @@ ${seriesDesc}
 ${hookDesc}
 
 - 每幕15秒以内
-- shot_description 格式：[景别] + [运镜] + [主体动作] + [场景环境] + [光影色调]
-  例："Medium shot, slow dolly in, character turning around with shocked expression, dimly lit alley, cold blue moonlight"
+- shot_description 格式：[景别] + [运镜] + [主体动作和微动作] + [场景环境动态] + [光影色调]
+  必须包含微动作引导：natural micro-movements, realistic breathing, subtle body language。
+  背景必须有动态描述：gentle breeze, flickering light, subtle background activity（不要写 static/frozen background）。
+  例："Medium shot, slow dolly in, character turning around with shocked expression and slight trembling hands, dimly lit alley with distant streetlight flickering, cold blue moonlight"
 - shot_type 从以下选一个：极特写/特写/中近景/中景/中远景/全景/大远景/俯拍/仰拍/鸟瞰/过肩/第一视角
 - camera_movement 从以下选一个：固定/慢推/急推/拉远/左摇/右摇/上摇/下摇/横移/环绕/跟随/上升/下降/左旋推进/右旋推进/变焦/手持
 - 台词要符合角色性格，自然流畅
 - 故事要有起承转合，有情感张力
 - speaker字段填演员的slug（如没有对话可留空字符串）
-- consistency_anchor：一句话精准描述本幕的视觉锁定元素，格式：「[角色外观]，[场景/地点]，[光线/时间]」例："Jake穿黑色夹克、三日胡须，坐在卡车驾驶座，深夜高速公路冷蓝色月光"。跨幕中同一角色/场景必须保持完全一致的anchor描述，以确保Kling多次调用间的视觉一致性。
+- consistency_anchor：一句话精准描述本幕的角色+场景视觉锁定，格式：「[角色外观]，[场景/地点]，[光线/时间]」例："Jake穿黑色夹克、三日胡须，坐在卡车驾驶座，深夜高速公路冷蓝色月光"。跨幕中同一角色/场景必须保持完全一致的anchor描述，以确保Kling多次调用间的视觉一致性。
+- scene_anchor：一句话精准描述本幕的场景环境（不含角色），格式：「[地点]+[关键道具]+[光线/色调]+[环境动态]」例："昏暗停车场，远处霓虹灯反射在湿润地面，冷蓝色调，偶有车影"。同一地点所有幕必须使用完全相同的scene_anchor，防止场景漂移。
 
 以JSON数组返回：
 [
@@ -129,6 +132,7 @@ ${hookDesc}
     "shot_type": "景别，从 极特写/特写/中近景/中景/中远景/全景/大远景/俯拍/仰拍/鸟瞰/过肩/第一视角 中选一个",
     "camera_movement": "运镜，从 固定/慢推/急推/拉远/左摇/右摇/上摇/下摇/横移/环绕/跟随/上升/下降/左旋推进/右旋推进/变焦/手持 中选一个",
     "consistency_anchor": "角色外观+场景+光线的一句话视觉锁定，跨幕同场景保持完全相同描述",
+    "scene_anchor": "纯场景环境锚定（不含角色），同一地点所有幕使用完全相同的描述",
     "duration": 10
   }
 ]`
