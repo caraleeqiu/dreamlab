@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { submitSimpleVideo } from '@/lib/kling'
+import { classifyKlingResponse } from '@/lib/video-router'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
-import { deductCredits, createClipRecords } from '@/lib/job-service'
+import { deductCredits, createClipRecords, failClipAndCheckJob } from '@/lib/job-service'
 import type { Influencer } from '@/types'
 
 const REMIX_STYLE_LABELS: Record<string, string> = {
@@ -66,10 +67,12 @@ export async function POST(req: NextRequest) {
   await Promise.allSettled(script.map(async (clip) => {
     const prompt = `${clip.shot_description}. ${influencer.name}: ${influencer.speaking_style || 'energetic'}. [VOICE: ${influencer.voice_prompt}]. "${clip.dialogue}". ${styleDesc}`
     const resp = await submitSimpleVideo({ prompt, imageUrl: influencer.frontal_image_url || '', durationS: clip.duration, aspectRatio: aspectRatio || '9:16', callbackUrl })
-    const taskId = resp?.data?.task_id
-    if (taskId && clips) {
-      await service.from('clips').update({ status: 'submitted', kling_task_id: taskId, prompt })
+    const result = classifyKlingResponse(resp)
+    if (result.taskId) {
+      await service.from('clips').update({ status: 'submitted', kling_task_id: result.taskId, prompt })
         .eq('job_id', job.id).eq('clip_index', clip.index)
+    } else {
+      await failClipAndCheckJob(service, job.id, clip.index, result.error ?? 'Submit failed')
     }
   }))
 

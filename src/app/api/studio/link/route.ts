@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { buildClipPrompt, submitImage2Video } from '@/lib/kling'
+import { classifyKlingResponse } from '@/lib/video-router'
 import { getPresignedUrl } from '@/lib/r2'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
-import { deductCredits, createClipRecords } from '@/lib/job-service'
+import { deductCredits, createClipRecords, failClipAndCheckJob } from '@/lib/job-service'
 import type { ScriptClip, Influencer } from '@/types'
 
 // POST /api/studio/link — 提交链接导入生成任务
@@ -71,12 +72,14 @@ export async function POST(request: NextRequest) {
     }
 
     const resp = await submitImage2Video(payload)
-    const taskId = resp?.data?.task_id
-    if (taskId && clips) {
+    const result = classifyKlingResponse(resp)
+    if (result.taskId) {
       await service.from('clips')
-        .update({ status: 'submitted', kling_task_id: taskId, prompt: payload.prompt })
+        .update({ status: 'submitted', kling_task_id: result.taskId, prompt: payload.prompt })
         .eq('job_id', job.id)
         .eq('clip_index', clip.index)
+    } else {
+      await failClipAndCheckJob(service, job.id, clip.index, result.error ?? 'Submit failed')
     }
   })
 

@@ -1,8 +1,87 @@
 # 🎭 Dreamlab - AI Influencer Factory 项目详细文档
 
 > **项目代号**: Dreamlab（AI红网工厂）
-> **最后更新**: 2026-02-19 (Round 11 — 架构重构)
+> **最后更新**: 2026-02-19 (Round 12 — 运镜系统 + Provider 路由)
 > **状态**: 🟢 **全流程可测试** — 完整导航架构，14个网红图片上线，工作台/任务管理/历史作品全部完成
+
+## ✅ Round 12（2026-02-19）— 运镜系统 + Provider 路由
+
+### 核心目标
+1. 建立完整的运镜/景别词汇体系，让 Gemini 生成电影级分镜描述
+2. 引入 Video Provider 路由层，支持 Kling → Seedance 的可插拔切换
+3. 修复所有提交路由的静默失败 bug（clip 卡死在 pending 状态）
+4. 为 Story / Anime / Podcast 引入 5 类开场钩子系统
+
+### 新增文件
+| 文件 | 作用 |
+|------|------|
+| `src/lib/video-router.ts` | Provider 路由层：Kling quota 错误识别、provider 封锁/解封、`classifyKlingResponse()` 统一分类 |
+
+### 运镜词汇体系（Gemini Prompt 升级）
+
+所有 Gemini 脚本生成路由统一升级：
+
+**景别（12 个）**：极特写 / 特写 / 中近景 / 中景 / 中远景 / 全景 / 大远景 / 俯拍 / 仰拍 / 鸟瞰 / 过肩 / 第一视角
+
+**运镜（17 个，含可灵官方大师运镜）**：固定 / 慢推 / 急推 / 拉远 / 左摇 / 右摇 / 上摇 / 下摇 / 横移 / 环绕 / 跟随 / 上升 / 下降 / 左旋推进 / 右旋推进 / 变焦 / 手持
+
+**shot_description 公式**：`[景别] + [运镜] + [主体动作] + [场景环境] + [光影色调]`
+
+例：`"Medium close-up, slow dolly in, host speaking to camera, modern studio, warm bokeh lighting"`
+
+**已升级路由**：`podcast/script` / `anime/script` / `story/script` / `storyboard`
+
+### kling.ts — buildClipPrompt 升级
+
+`shot_type` 和 `camera_movement` 字段现在拼入 Kling prompt：
+```
+[特写, 慢推] Medium close-up, slow dolly in, host facing camera...
+```
+
+### 开场钩子系统（HOOK_PROMPT）
+
+| Job 类型 | 钩子类型 | 说明 |
+|----------|----------|------|
+| **Story** | midaction / curiosity / confession / visual / silence | 叙事类，戏剧冲突驱动 |
+| **Anime** | midaction / curiosity / confession / visual / silence | 叙事类，动漫视觉语言强化 |
+| **Podcast** | bold_claim / question / story / stat / contrast | 信息类，认知驱动 |
+
+前端传 `hookType` 字段到 script 生成接口，Gemini 会按照对应钩子模板构建第一幕。
+
+### Provider 路由层设计
+
+```
+Kling v3 (primary)
+  ↓ quota error (code: 1600039/1600040/1600037)
+Provider blocked 2h → clip → failed（不再卡死）
+  ↓ (Seedance API 上线后)
+getActiveProvider() 返回 'seedance' → submitToSeedance()
+```
+
+**3 套 SOP 状态**：
+- 全 Kling：当前线上运行
+- 全 Seedance：Seedance API 上线后改 `getActiveProvider()` 权重即可
+- 混合模式：上线后加 `getProviderForJobType(jobType)` 按 job 类型分配
+
+### 静默失败修复（P0）
+
+**改前**：所有提交路由在 Kling 返回错误时，clip 永远停留在 `pending`/`submitted`，用户无限等待。
+
+**改后**：`classifyKlingResponse()` 统一处理，无 taskId 时调 `failClipAndCheckJob()` 立即终结 clip，job 状态同步更新。
+
+**已修复路由**：podcast / script / link / anime / story / remix / edu/talk / edu/animated（共 8 个）
+
+### job-service.ts 新增
+- `failClipAndCheckJob(service, jobId, clipIndex, errorMsg)` — 标记 clip 失败并检查 job 是否全部完成
+
+### 待完成（下一轮）
+- [ ] Kling 3.0: `frontal_image_url` → `element_id`（Subject Library 迁移）
+- [ ] Job 超时保护：clip 超过 30 分钟仍 submitted 时主动查询状态
+- [ ] Clip 重试机制（`retry_count` 字段）
+- [ ] Seedance API 集成（API 文档发布后）
+- [ ] DB migration: `ALTER TABLE clips ADD COLUMN provider TEXT DEFAULT 'kling'`
+
+---
 
 ## ✅ Round 11（2026-02-19）— 架构重构
 

@@ -60,8 +60,16 @@ export function buildClipPrompt(
   firstFrameUrl: string,
   frontalImageUrl: string,
 ) {
+  // Compose camera directive from structured fields when available
+  // Format: [shot_type, camera_movement] prepended to shot_description
+  // Example: "[特写, 慢推] Close-up, slow dolly in, host facing camera..."
+  const cameraTag = [clip.shot_type, clip.camera_movement].filter(Boolean).join(', ')
+  const visualDirective = cameraTag
+    ? `[${cameraTag}] ${clip.shot_description}`
+    : clip.shot_description
+
   const prompt = [
-    `<<<element_1>>> ${clip.shot_description}`,
+    `<<<element_1>>> ${visualDirective}`,
     `Speak naturally: "${clip.dialogue}"`,
     `Voice style: ${influencer.voice_prompt}`,
   ].join('. ')

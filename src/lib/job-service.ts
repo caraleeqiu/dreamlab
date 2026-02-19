@@ -28,6 +28,43 @@ export async function deductCredits(
 }
 
 /**
+ * 将单个 clip 标记为提交失败，并检查整个 job 是否全部完成/失败。
+ * 用于视频提交阶段（Kling API 返回错误时）立即终结该 clip，
+ * 避免其永远卡在 'pending' 或 'submitted' 状态。
+ */
+export async function failClipAndCheckJob(
+  service: ServiceClient,
+  jobId: number,
+  clipIndex: number,
+  errorMsg: string,
+): Promise<void> {
+  await service
+    .from('clips')
+    .update({ status: 'failed', error_msg: errorMsg })
+    .eq('job_id', jobId)
+    .eq('clip_index', clipIndex)
+
+  // Re-check job status: if all clips are now terminal (done/failed), update the job
+  const { data: clips } = await service
+    .from('clips')
+    .select('status')
+    .eq('job_id', jobId)
+  if (!clips) return
+
+  const allTerminal = clips.every(c => c.status === 'done' || c.status === 'failed')
+  if (!allTerminal) return
+
+  const allDone = clips.every(c => c.status === 'done')
+  await service
+    .from('jobs')
+    .update({
+      status: allDone ? 'stitching' : 'failed',
+      error_msg: allDone ? undefined : '部分切片提交失败',
+    })
+    .eq('id', jobId)
+}
+
+/**
  * 批量创建 clip 记录（状态初始化为 pending）。
  * scripts 只需包含 index 字段；其余字段由 Kling 回调后更新。
  */

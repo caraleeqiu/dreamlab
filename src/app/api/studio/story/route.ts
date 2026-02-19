@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { submitMultiShotVideo } from '@/lib/kling'
+import { classifyKlingResponse } from '@/lib/video-router'
 import { getPresignedUrl } from '@/lib/r2'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
-import { deductCredits } from '@/lib/job-service'
+import { deductCredits, failClipAndCheckJob } from '@/lib/job-service'
 import type { ScriptClip, Influencer } from '@/types'
 
 const NARRATIVE_VISUAL: Record<string, string> = {
@@ -76,10 +77,12 @@ export async function POST(req: NextRequest) {
     callbackUrl: getCallbackUrl(),
   })
 
-  const taskId = resp?.data?.task_id
-  if (taskId && clipRows) {
-    await service.from('clips').update({ status: 'submitted', kling_task_id: taskId })
+  const result = classifyKlingResponse(resp)
+  if (result.taskId) {
+    await service.from('clips').update({ status: 'submitted', kling_task_id: result.taskId })
       .eq('job_id', job.id).eq('clip_index', 0)
+  } else {
+    await failClipAndCheckJob(service, job.id, 0, result.error ?? 'Submit failed')
   }
 
   return NextResponse.json({ jobId: job.id })

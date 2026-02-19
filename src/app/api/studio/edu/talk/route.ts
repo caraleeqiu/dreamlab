@@ -9,23 +9,13 @@ import { deductCredits, failClipAndCheckJob } from '@/lib/job-service'
 import { groupClips } from '@/lib/video-utils'
 import type { ScriptClip } from '@/types'
 
-const ANIME_STYLE_VISUAL: Record<string, string> = {
-  cyberpunk: 'cyberpunk aesthetic, neon lights, futuristic cityscape, high-tech atmosphere',
-  ancient:   'traditional Chinese painting style, ink wash, elegant oriental aesthetics',
-  modern:    'modern urban style, fashionable, lifestyle scenes, clean composition',
-  cute:      'cute anime style, kawaii, pastel colors, expressive character',
-  fantasy:   'fantasy magic world, epic lighting, colorful special effects, mystical',
-  minimal:   'minimalist, pure background, premium quality, elegant simplicity',
-}
-
-
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return apiError('Unauthorized', 401)
 
-  const { brandName, productName, animeStyle, influencerId, platform, aspectRatio, script, lang } = await req.json()
-  if (!brandName || !productName || !influencerId || !platform || !script) {
+  const { content, depth, influencerId, platform, aspectRatio, durationS, script, lang } = await req.json()
+  if (!content || !influencerId || !platform || !script) {
     return apiError('Missing required fields', 400)
   }
 
@@ -34,8 +24,20 @@ export async function POST(req: NextRequest) {
   if (!influencer) return apiError('Influencer not found', 404)
 
   const service = await createServiceClient()
-  const creditError = await deductCredits(service, user.id, CREDIT_COSTS.anime, `动漫营销: ${brandName} ${productName}`)
+  const creditError = await deductCredits(
+    service, user.id, CREDIT_COSTS.edu_talk,
+    `口播科普: ${content.title || content.summary?.slice(0, 30) || '未命名'}`
+  )
   if (creditError) return creditError
+
+  const { data: job, error: jobErr } = await supabase.from('jobs').insert({
+    user_id: user.id, type: 'edu', status: 'generating', language: lang || 'zh',
+    title: `科普: ${content.title || content.summary?.slice(0, 20)}`,
+    platform, aspect_ratio: aspectRatio || '9:16',
+    influencer_ids: [influencerId], duration_s: durationS, script,
+    credit_cost: CREDIT_COSTS.edu_talk,
+  }).select().single()
+  if (jobErr) return apiError(jobErr.message, 500)
 
   const frontalKey = influencer.frontal_image_url?.split('/dreamlab-assets/')[1]
   const imageUrl = frontalKey
@@ -43,15 +45,8 @@ export async function POST(req: NextRequest) {
     : influencer.frontal_image_url || ''
 
   const clips = script as ScriptClip[]
-  const styleVisual = ANIME_STYLE_VISUAL[animeStyle] || 'anime style'
-  const stylePrefix = `${influencer.name} (${influencer.tagline}), ${styleVisual}. Brand: ${brandName}, product: ${productName}. Voice: ${influencer.voice_prompt}.`
-
-  const { data: job, error: jobErr } = await supabase.from('jobs').insert({
-    user_id: user.id, type: 'anime', status: 'generating', language: lang || 'zh',
-    title: `动漫营销: ${brandName} × ${influencer.name}`, platform, aspect_ratio: aspectRatio || '9:16',
-    influencer_ids: [influencerId], script, credit_cost: CREDIT_COSTS.anime,
-  }).select().single()
-  if (jobErr) return apiError(jobErr.message, 500)
+  const depthDesc = depth === 'beginner' ? 'accessible and beginner-friendly' : depth === 'expert' ? 'expert-level analytical' : 'intermediate educational'
+  const stylePrefix = `${influencer.name} (${influencer.tagline}), ${depthDesc} science explainer. Voice: ${influencer.voice_prompt}.`
 
   const callbackUrl = getCallbackUrl()
   const groups = groupClips(clips)
@@ -66,11 +61,12 @@ export async function POST(req: NextRequest) {
 
     let resp
     if (group.length === 1) {
+      const c = group[0]
       const prompt = [
         stylePrefix,
-        `Scene: ${group[0].shot_description}`,
-        group[0].dialogue ? `${influencer.name} says: "${group[0].dialogue}"` : '',
-        'Vertical format, premium anime animation.',
+        `Scene: ${c.shot_description}`,
+        c.dialogue ? `${influencer.name} says: "${c.dialogue}"` : '',
+        'Educational science explainer, clear and engaging.',
       ].filter(Boolean).join(' ')
 
       resp = await submitMultiShotVideo({

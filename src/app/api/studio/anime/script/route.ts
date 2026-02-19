@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Opening hook types — same 5 archetypes as story, anime-specific framing
+const HOOK_PROMPT: Record<string, string> = {
+  midaction:  '【开场钩子：开场即危机】第一幕必须从最高张力瞬间切入，角色已处于危机中心，画面直接呈现冲突顶点，无任何铺垫，用动漫夸张的视觉和肢体语言放大这一时刻。',
+  curiosity:  '【开场钩子：好奇缺口】第一幕用一个视觉或台词谜语开场，绝不解释。产品或品牌以神秘姿态出现，观众必须继续看才能理解它存在的意义。',
+  confession: '【开场钩子：角色告白】第一幕由代言角色直视镜头，用角色专属的说话风格说出一句让人意外的个人告白或反差宣言，打破第四堵墙。',
+  visual:     '【开场钩子：悬念物件】第一幕以产品或与产品相关的神秘物件极特写开场——无台词，无解释，镜头在物件上停留足够长，让观众产生"这是什么"的疑问。',
+  silence:    '【开场钩子：沉默爆发】第一幕以极度安静的氛围和视觉张力建立压抑感，所有情绪靠画面传递，然后在最后一秒用一句话或一个动作彻底打破沉默，作为整支视频的导火索。',
+}
+
 // Auto anime style → visual description (no longer chosen by user)
 const ANIME_STYLE_PROMPTS: Record<string, string> = {
   cyberpunk: 'Cyberpunk aesthetic, neon lighting, futuristic city, high-tech feel',
@@ -110,6 +119,7 @@ export async function POST(req: NextRequest) {
   const totalDuration  = VALID_DURATIONS.has(body.totalDuration) ? body.totalDuration as string : '30s'
   const productCategory = VALID_CATEGORIES.has(body.productCategory) ? body.productCategory as string : 'use'
   const animeStyle     = VALID_STYLES.has(body.animeStyle) ? body.animeStyle as string : 'modern'
+  const hookType       = sanitize(body.hookType, 20)
 
   // clipCount must be a positive integer, max 12
   const clipCount = Math.max(1, Math.min(12, Math.floor(Number(body.clipCount) || 2)))
@@ -134,6 +144,7 @@ export async function POST(req: NextRequest) {
   const isZh = lang !== 'en'
   const styleDesc = ANIME_STYLE_PROMPTS[animeStyle] || 'anime style'
   const formatGuide = FORMAT_GUIDANCE[videoFormat as string] || FORMAT_GUIDANCE.other
+  const hookDesc = HOOK_PROMPT[hookType] || HOOK_PROMPT['midaction']
   const characterDossier = buildCharacterDossier(influencer as Record<string, unknown>, lang)
   const durationNote = durationLabel(totalDuration, clipCount, lang)
   const clipDurationSec = Math.round(
@@ -170,14 +181,17 @@ Every script you write must keep character dialogue strictly in-character. OOC (
 ${durationNote}，每段约 ${clipDurationSec} 秒
 
 ## 叙事结构要求
-开场钩子：${formatGuide.hook}
+${hookDesc}
 整体弧线：${formatGuide.arc}
 
 ## 脚本格式规则
 - 每段台词不超过 30 字（字幕节奏）
-- 每段 shot_description 包含：景别（特写/近景/中景/全景）、镜头运动、角色动作、场景色调
+- shot_description 格式：[景别] + [运镜] + [主体动作] + [场景环境] + [动漫色调/特效]
+  例："Extreme close-up, slow dolly in, character's determined eyes glowing, cyberpunk neon rain, cinematic teal-orange grade"
+- shot_type 从以下选一个：极特写/特写/中近景/中景/中远景/全景/大远景/俯拍/仰拍/鸟瞰/过肩/第一视角
+- camera_movement 从以下选一个：固定/慢推/急推/拉远/左摇/右摇/上摇/下摇/横移/环绕/跟随/上升/下降/左旋推进/右旋推进/变焦/手持
 - 如果格式是口播类或剧情类，角色必须有对话；其他类可以不说话但需要有强烈视觉
-- 第一个场景必须是钩子/开场
+- 第一个场景必须是钩子/开场，camera_movement 建议用 急推 或 环绕 制造冲击感
 - 最后一个场景必须有产品植入 + 情绪收口
 - 【内心独白提示】在生成台词前，先在脑海中模拟角色的真实感受（不要输出到JSON，只用于指导台词质量）
 
@@ -187,7 +201,9 @@ ${durationNote}，每段约 ${clipDurationSec} 秒
     "index": 0,
     "speaker": "${influencer.slug || influencer.name}",
     "dialogue": "角色台词（口播类/剧情类必填；其他类可为空字符串）",
-    "shot_description": "详细场景描述（景别+动作+色调+特效，方便AI视频生成）",
+    "shot_description": "详细场景描述（格式：[景别]+[运镜]+[主体动作]+[场景]+[色调特效]）",
+    "shot_type": "景别，从 极特写/特写/中近景/中景/中远景/全景/大远景/俯拍/仰拍/鸟瞰/过肩/第一视角 中选一个",
+    "camera_movement": "运镜，从 固定/慢推/急推/拉远/左摇/右摇/上摇/下摇/横移/环绕/跟随/上升/下降/左旋推进/右旋推进/变焦/手持 中选一个",
     "duration": ${clipDurationSec}
   }
 ]
@@ -210,14 +226,17 @@ Anime visual style: ${styleDesc}
 ${durationNote}, each scene ~${clipDurationSec}s
 
 ## Narrative Structure
-Opening hook: ${formatGuide.hook}
+${hookDesc}
 Overall arc: ${formatGuide.arc}
 
 ## Script Format Rules
 - Dialogue: max 15 words per line (subtitle pacing)
-- shot_description must include: shot type (ECU/CU/MS/LS), camera motion, character action, scene tone
+- shot_description format: [shot type] + [camera move] + [subject action] + [scene/environment] + [anime tone/effects]
+  Example: "Extreme close-up, slow dolly in, character's eyes glowing with determination, cyberpunk neon rain, teal-orange cinematic grade"
+- shot_type — pick one: ECU(极特写)/CU(特写)/MCU(中近景)/MS(中景)/MLS(中远景)/WS(全景)/EWS(大远景)/high-angle(俯拍)/low-angle(仰拍)/bird's-eye(鸟瞰)/OTS(过肩)/POV(第一视角)
+- camera_movement — pick one: static(固定)/slow-dolly-in(慢推)/fast-push-in(急推)/dolly-out(拉远)/pan-left(左摇)/pan-right(右摇)/tilt-up(上摇)/tilt-down(下摇)/lateral(横移)/orbit(环绕)/tracking(跟随)/crane-up(上升)/crane-down(下降)/spiral-left(左旋推进)/spiral-right(右旋推进)/zoom(变焦)/handheld(手持)
 - Voiceover/drama format: character must have dialogue; other format can be silent but needs strong visual
-- Scene 1 must be the hook/opening
+- Scene 1 must be the hook/opening — use fast-push-in or orbit for impact
 - Final scene must have product integration + emotional close
 - [Inner monologue tip] Before writing each line, mentally simulate the character's true feeling (don't output this — use it to guide dialogue authenticity)
 
@@ -227,7 +246,9 @@ Return as JSON array, no markdown code blocks:
     "index": 0,
     "speaker": "${influencer.slug || influencer.name}",
     "dialogue": "Character line (required for voiceover/drama; empty string OK for other)",
-    "shot_description": "Detailed scene description (shot type + action + tone + effects, for AI video generation)",
+    "shot_description": "Cinematic description: [shot type] + [camera move] + [subject action] + [scene] + [anime tone/effects]",
+    "shot_type": "one of: ECU/CU/MCU/MS/MLS/WS/EWS/high-angle/low-angle/bird's-eye/OTS/POV",
+    "camera_movement": "one of: static/slow-dolly-in/fast-push-in/dolly-out/pan-left/pan-right/tilt-up/tilt-down/lateral/orbit/tracking/crane-up/crane-down/spiral-left/spiral-right/zoom/handheld",
     "duration": ${clipDurationSec}
   }
 ]
