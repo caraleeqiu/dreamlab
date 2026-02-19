@@ -100,35 +100,44 @@ export async function POST(req: NextRequest) {
     `Voice: ${primaryInf.voice_prompt}.`,
   ].filter(Boolean).join(' ')
 
-  await Promise.allSettled(groups.map(async (group, gi) => {
-    const groupDuration = Math.min(group.reduce((s, c) => s + (c.duration || 5), 0), 15)
+  // ── Frame-chained sequential submission ──────────────────────────────────
+  // Story videos use frame chaining to maintain temporal continuity:
+  //   - Group 0 is submitted immediately to Kling
+  //   - Groups 1..N are stored as "deferred" payloads in clips.prompt (JSON)
+  //   - The webhook extracts the last frame of group N and submits group N+1
+  //     with that frame as first_frame, then clears the deferred payload
+  //
+  // This ensures the character's position/action flows naturally between clips
+  // instead of "teleporting" at each group boundary.
 
-    let resp
+  function buildGroupPayload(group: ScriptClip[], gi: number) {
+    const groupDuration = Math.min(group.reduce((s, c) => s + (c.duration || 5), 0), 15)
     if (group.length === 1) {
       const c = group[0]
       const actor = infMap[c.speaker] || primaryInf
       const rolePart = castRoles?.[actor.id] ? ` as ${castRoles[actor.id]}` : ''
       const bgmNote = c.bgm && BGM_VISUAL[c.bgm] ? ` [Audio: ${BGM_VISUAL[c.bgm]}]` : ''
       const anchorNote = c.consistency_anchor ? `[Visual anchor: ${c.consistency_anchor}]` : ''
-      const prompt = [
-        stylePrefix,
-        anchorNote,
-        `Scene: ${c.shot_description}.`,
-        c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
-        bgmNote,
-        'Vertical format 9:16, cinematic quality, mystery atmosphere.',
-      ].filter(Boolean).join(' ')
-
-      resp = await submitMultiShotVideo({
+      return {
+        kind: 'single' as const,
+        groupIndex: gi,
         imageUrl,
-        prompt,
-        shotType: 'intelligence',
+        prompt: [
+          stylePrefix, anchorNote,
+          `Scene: ${c.shot_description}.`,
+          c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
+          bgmNote,
+          'Vertical format 9:16, cinematic quality, mystery atmosphere.',
+        ].filter(Boolean).join(' '),
+        shotType: 'intelligence' as const,
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
         callbackUrl,
-      })
+      }
     } else {
-      resp = await submitMultiShotVideo({
+      return {
+        kind: 'multi' as const,
+        groupIndex: gi,
         imageUrl,
         shots: group.map((c, si) => {
           const actor = infMap[c.speaker] || primaryInf
@@ -139,30 +148,48 @@ export async function POST(req: NextRequest) {
             index: si + 1,
             prompt: [
               `${stylePrefix} Shot ${si + 1}:`,
-              anchorNote,
-              c.shot_description,
+              anchorNote, c.shot_description,
               c.dialogue ? `${actor.name}${rolePart} says: "${c.dialogue}"` : '',
               bgmNote,
             ].filter(Boolean).join(' '),
             duration: c.duration || 5,
           }
         }),
-        shotType: 'customize',
+        shotType: 'customize' as const,
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
         callbackUrl,
-      })
+      }
     }
+  }
 
-    const result = classifyKlingResponse(resp)
-    if (result.taskId) {
+  // Submit group 0 immediately; store groups 1..N as deferred
+  const group0Payload = buildGroupPayload(groups[0], 0)
+  const resp0 = await submitMultiShotVideo(
+    group0Payload.kind === 'single'
+      ? { imageUrl: group0Payload.imageUrl, prompt: group0Payload.prompt, shotType: group0Payload.shotType, totalDuration: group0Payload.totalDuration, aspectRatio: group0Payload.aspectRatio, callbackUrl }
+      : { imageUrl: group0Payload.imageUrl, shots: group0Payload.shots, shotType: group0Payload.shotType, totalDuration: group0Payload.totalDuration, aspectRatio: group0Payload.aspectRatio, callbackUrl }
+  )
+  const result0 = classifyKlingResponse(resp0)
+  if (result0.taskId) {
+    await service.from('clips')
+      .update({ status: 'submitted', provider: 'kling', task_id: result0.taskId, kling_task_id: result0.taskId })
+      .eq('job_id', job.id).eq('clip_index', 0)
+  } else {
+    await failClipAndCheckJob(service, job.id, 0, result0.error ?? 'Submit failed')
+  }
+
+  // Store deferred payloads for groups 1..N in clips.prompt as JSON
+  // The webhook reads these and submits them once the previous frame is available
+  if (groups.length > 1) {
+    await Promise.allSettled(groups.slice(1).map(async (group, i) => {
+      const gi = i + 1
+      const payload = buildGroupPayload(group, gi)
       await service.from('clips')
-        .update({ status: 'submitted', provider: 'kling', task_id: result.taskId, kling_task_id: result.taskId })
+        .update({ prompt: JSON.stringify({ _deferred: true, ...payload }) })
         .eq('job_id', job.id).eq('clip_index', gi)
-    } else {
-      await failClipAndCheckJob(service, job.id, gi, result.error ?? 'Submit failed')
-    }
-  }))
+    }))
+  }
 
   return NextResponse.json({ jobId: job.id })
 }

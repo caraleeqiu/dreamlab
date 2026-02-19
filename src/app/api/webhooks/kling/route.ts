@@ -1,8 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getTaskStatus } from '@/lib/kling'
+import { getTaskStatus, submitMultiShotVideo } from '@/lib/kling'
 import { uploadToR2 } from '@/lib/r2'
 import { createLogger } from '@/lib/logger'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import ffmpeg from 'fluent-ffmpeg'
+import ffmpegPath from 'ffmpeg-static'
+
+if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath)
 
 const logger = createLogger('webhook:kling')
 
@@ -84,7 +91,138 @@ async function handleCallback(task_id: string) {
     }).eq('id', clip.id)
 
     logger.info('clip uploaded', { task_id, jobId: clip.job_id, clipIndex: clip.clip_index })
+
+    // Frame chaining: if the job has a deferred next clip, extract last frame
+    // and submit it now with that frame as first_frame anchor.
+    await submitNextDeferredClip(service, clip.job_id, clip.clip_index, buffer)
+
     await checkAndUpdateJobStatus(service, clip.job_id)
+  }
+}
+
+// ── Frame chaining helpers ────────────────────────────────────────────────────
+
+/**
+ * Extract the last frame of an MP4 buffer using ffmpeg-static.
+ * Returns the frame as a JPEG buffer, or null on failure.
+ */
+async function extractLastFrame(videoBuffer: Buffer): Promise<Buffer | null> {
+  const tmpDir = path.join(os.tmpdir(), `dreamlab_frame_${Date.now()}`)
+  try {
+    fs.mkdirSync(tmpDir, { recursive: true })
+    const videoPath = path.join(tmpDir, 'clip.mp4')
+    const framePath = path.join(tmpDir, 'last_frame.jpg')
+    fs.writeFileSync(videoPath, videoBuffer)
+
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg()
+        .input(videoPath)
+        // sseof: seek from end of file; -0.5s catches the last real frame
+        .inputOptions(['-sseof', '-0.5'])
+        .outputOptions(['-vframes', '1', '-q:v', '2'])
+        .output(framePath)
+        .on('end', () => resolve())
+        .on('error', (err: Error) => reject(err))
+        .run()
+    })
+
+    if (!fs.existsSync(framePath)) return null
+    return fs.readFileSync(framePath)
+  } catch (err) {
+    logger.warn('extractLastFrame failed (non-fatal)', { err: String(err) })
+    return null
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
+  }
+}
+
+/**
+ * After clip N completes, look for the next pending deferred clip (clip N+1).
+ * If found, extract the last frame of clip N, use it as first_frame for clip N+1,
+ * and submit it to Kling. The deferred payload is stored in clips.prompt as JSON.
+ */
+async function submitNextDeferredClip(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  jobId: number,
+  completedClipIndex: number,
+  completedVideoBuffer: Buffer,
+): Promise<void> {
+  const nextIndex = completedClipIndex + 1
+
+  // Find the next clip — must be pending with a deferred payload
+  const { data: nextClip } = await service
+    .from('clips')
+    .select('id, prompt')
+    .eq('job_id', jobId)
+    .eq('clip_index', nextIndex)
+    .eq('status', 'pending')
+    .maybeSingle()
+
+  if (!nextClip) return
+
+  let deferred: Record<string, unknown>
+  try {
+    deferred = JSON.parse(nextClip.prompt ?? '{}')
+  } catch {
+    return
+  }
+  if (!deferred._deferred) return
+
+  logger.info('frame chain: submitting deferred clip', { jobId, nextIndex })
+
+  // Extract last frame and upload to R2
+  const frameBuffer = await extractLastFrame(completedVideoBuffer)
+  let firstFrameUrl: string | undefined
+
+  if (frameBuffer) {
+    const frameKey = `jobs/${jobId}/frames/clip_${completedClipIndex}_last.jpg`
+    firstFrameUrl = await uploadToR2(frameKey, frameBuffer, 'image/jpeg')
+    // Store the extracted frame in the completing clip's first_frame_url for reference
+    await service.from('clips').update({ first_frame_url: firstFrameUrl }).eq('job_id', jobId).eq('clip_index', completedClipIndex)
+  }
+
+  // Build submitMultiShotVideo params from deferred payload
+  const baseParams = {
+    imageUrl: deferred.imageUrl as string,
+    totalDuration: deferred.totalDuration as number,
+    aspectRatio: deferred.aspectRatio as string,
+    callbackUrl: deferred.callbackUrl as string,
+    firstFrameUrl,  // the chain anchor
+  }
+
+  let resp: unknown
+  if (deferred.kind === 'single') {
+    resp = await submitMultiShotVideo({
+      ...baseParams,
+      prompt: deferred.prompt as string,
+      shotType: deferred.shotType as 'intelligence' | 'customize',
+    })
+  } else {
+    resp = await submitMultiShotVideo({
+      ...baseParams,
+      shots: deferred.shots as Array<{ index: number; prompt: string; duration: number }>,
+      shotType: 'customize',
+    })
+  }
+
+  const taskId = (resp as { data?: { task_id?: string } })?.data?.task_id ?? null
+  if (taskId) {
+    await service.from('clips')
+      .update({
+        status: 'submitted',
+        provider: 'kling',
+        kling_task_id: taskId,
+        task_id: taskId,
+        first_frame_url: firstFrameUrl ?? null,
+        prompt: deferred.prompt as string ?? '',
+      })
+      .eq('id', nextClip.id)
+    logger.info('frame chain: deferred clip submitted', { jobId, nextIndex, taskId })
+  } else {
+    await service.from('clips')
+      .update({ status: 'failed', error_msg: 'Deferred submission failed' })
+      .eq('id', nextClip.id)
+    logger.warn('frame chain: deferred clip submission failed', { jobId, nextIndex })
   }
 }
 

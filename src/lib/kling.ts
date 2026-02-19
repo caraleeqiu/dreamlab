@@ -125,6 +125,10 @@ export async function submitMultiShotVideo(params: {
   renderMode?: 'pro' | 'std'
   elementList?: Array<{ element_id?: string; frontal_image_url?: string }>
   voiceList?: Array<{ voice_id: string }>
+  // Frame chaining: use a specific image as the starting frame (overrides imageUrl as first_frame)
+  firstFrameUrl?: string
+  // Reference video for cinematic style/camera learning (refer_type: "feature")
+  referenceVideoUrl?: string
   callbackUrl?: string
 }) {
   const shotType = params.shotType ?? (params.shots?.length ? 'customize' : 'intelligence')
@@ -138,6 +142,16 @@ export async function submitMultiShotVideo(params: {
     duration: String(Math.min(params.totalDuration, 15)),
     aspect_ratio: params.aspectRatio ?? '9:16',
     sound: 'on',
+  }
+
+  // Frame chaining: pin the first frame to a specific image (e.g. last frame of previous clip)
+  if (params.firstFrameUrl) {
+    body.image_list = [{ url: params.firstFrameUrl, type: 'first_frame' }]
+  }
+
+  // Reference video for camera/cinematic style learning
+  if (params.referenceVideoUrl) {
+    body.video_list = [{ url: params.referenceVideoUrl, refer_type: 'feature', keep_original_sound: 'no' }]
   }
 
   if (shotType === 'customize' && params.shots?.length) {

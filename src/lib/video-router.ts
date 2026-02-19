@@ -64,9 +64,36 @@ export function blockProvider(
 
 export function getActiveProvider(): VideoProvider {
   if (isProviderAvailable('kling')) return 'kling'
-  // Future: if (isProviderAvailable('seedance')) return 'seedance'
-  // For now Seedance API is not yet released — fall back to kling anyway
-  // and let it fail fast so the job is marked failed rather than stuck.
+  // Seedance: enabled when SEEDANCE_API_KEY is set and provider not blocked
+  if (process.env.SEEDANCE_API_KEY && isProviderAvailable('seedance')) return 'seedance'
+  return 'kling'
+}
+
+/**
+ * Select provider for a specific clip based on:
+ * 1. Job-level strategy (all-kling / all-seedance / hybrid)
+ * 2. Influencer type (Seedance cannot handle photorealistic human faces)
+ * 3. Clip content (character dialogue → Kling; B-roll → Seedance)
+ */
+export function selectClipProvider(opts: {
+  jobStrategy?: 'kling' | 'seedance' | 'hybrid'
+  influencerType?: 'human' | 'animal' | 'virtual' | 'brand'
+  hasDialogue?: boolean
+}): VideoProvider {
+  const { jobStrategy = 'kling', influencerType = 'human', hasDialogue = true } = opts
+
+  // human influencer → always Kling (Seedance blocks real faces)
+  if (influencerType === 'human') return 'kling'
+
+  if (jobStrategy === 'kling') return 'kling'
+  if (jobStrategy === 'seedance' && process.env.SEEDANCE_API_KEY) return 'seedance'
+
+  // Hybrid: character clips (with dialogue) → Kling; scene/B-roll → Seedance
+  if (jobStrategy === 'hybrid') {
+    if (hasDialogue) return 'kling'
+    return process.env.SEEDANCE_API_KEY ? 'seedance' : 'kling'
+  }
+
   return 'kling'
 }
 
