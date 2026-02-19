@@ -37,6 +37,7 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
   const [seriesMode, setSeriesMode] = useState(false)
   const [seriesName, setSeriesName] = useState('')
   const [episodeNumber, setEpisodeNumber] = useState(1)
+  const [previousEpisodeSummary, setPreviousEpisodeSummary] = useState('')
   const [castInfluencers, setCastInfluencers] = useState<Influencer[]>([])
   const [platform, setPlatform] = useState((initialPrefs.platform as string) ?? '')
   const [aspectRatio, setAspectRatio] = useState('9:16')
@@ -151,7 +152,7 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
       const res = await fetch('/api/studio/story/script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers: castInfluencers, durationS: duration, lang, castRoles }),
+        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, previousEpisodeSummary, influencers: castInfluencers, durationS: duration, lang, castRoles }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
@@ -173,7 +174,7 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
       const res = await fetch('/api/studio/story', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencerIds: castInfluencers.map(i => i.id), platform, aspectRatio, durationS: duration, script, lang, castRoles, cliffhanger }),
+        body: JSON.stringify({ storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, previousEpisodeSummary, influencerIds: castInfluencers.map(i => i.id), platform, aspectRatio, durationS: duration, script, lang, castRoles, cliffhanger }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || t(lang, UI.common.error))
@@ -285,6 +286,23 @@ const StoryWizard = forwardRef<StoryWizardHandle, Props>(function StoryWizard({ 
                   ))}
                 </div>
               </div>
+              {episodeNumber > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-zinc-400">
+                    {lang === 'zh' ? `前情提要（第 ${episodeNumber - 1} 集发生了什么？）` : `Previously on Ep.${episodeNumber - 1} — what happened?`}
+                    <span className="text-zinc-600 ml-1">{lang === 'zh' ? '选填，填写后剧情更连贯' : 'Optional — improves continuity'}</span>
+                  </Label>
+                  <textarea
+                    rows={3}
+                    placeholder={lang === 'zh'
+                      ? '例如：主角在高速路上发现了一个陌生女孩，但停车后女孩消失了，结尾留下了一个未解之谜...'
+                      : 'e.g. The protagonist found a strange girl on the highway, but she vanished after stopping. Left on a cliffhanger...'}
+                    value={previousEpisodeSummary}
+                    onChange={e => setPreviousEpisodeSummary(e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white placeholder:text-zinc-600 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  />
+                </div>
+              )}
             </div>
           )}
 

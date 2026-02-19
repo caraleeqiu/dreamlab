@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy, RefreshCw, Pencil, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Job, Clip } from '@/types'
 import { useLanguage } from '@/context/language-context'
@@ -26,6 +26,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [publishKit, setPublishKit] = useState<PublishKit | null>(null)
   const [loadingKit, setLoadingKit] = useState(false)
   const [copied, setCopied] = useState('')
+  const [editingClipId, setEditingClipId] = useState<number | null>(null)
+  const [editPrompt, setEditPrompt] = useState('')
+  const [keepSound, setKeepSound] = useState(true)
+  const [editSubmitting, setEditSubmitting] = useState(false)
 
   async function generatePublishKit() {
     if (!job) return
@@ -47,6 +51,29 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     navigator.clipboard.writeText(text)
     setCopied(key)
     setTimeout(() => setCopied(''), 2000)
+  }
+
+  async function submitClipEdit(clipId: number) {
+    if (!editPrompt.trim()) return
+    setEditSubmitting(true)
+    try {
+      const res = await fetch('/api/studio/edit-clip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clip_id: clipId, edit_prompt: editPrompt, keep_sound: keepSound }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error || (lang === 'zh' ? '提交失败' : 'Submit failed'))
+        return
+      }
+      setEditingClipId(null)
+      setEditPrompt('')
+      // Refresh job data — clip is now submitted, job is generating
+      await fetchJob()
+    } finally {
+      setEditSubmitting(false)
+    }
   }
 
   const STATUS_LABEL: Record<string, string> = {
@@ -251,10 +278,75 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                       className="w-full rounded-lg border border-zinc-700"
                       style={{ aspectRatio: job.aspect_ratio?.replace(':', '/') }}
                     />
-                    <a href={clip.lipsync_url || clip.video_url} download
-                      className="flex items-center justify-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors">
-                      <Download size={11} /> {t(lang, UI.jobs.downloadClip)} {clip.clip_index + 1}
-                    </a>
+                    <div className="flex items-center justify-between">
+                      <a href={clip.lipsync_url || clip.video_url} download
+                        className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors">
+                        <Download size={11} /> {t(lang, UI.jobs.downloadClip)} {clip.clip_index + 1}
+                      </a>
+                      <button
+                        onClick={() => {
+                          if (editingClipId === clip.id) {
+                            setEditingClipId(null)
+                          } else {
+                            setEditingClipId(clip.id)
+                            setEditPrompt('')
+                          }
+                        }}
+                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-violet-400 transition-colors"
+                      >
+                        <Pencil size={11} />
+                        {lang === 'zh' ? '编辑' : 'Edit'}
+                      </button>
+                    </div>
+
+                    {/* Inline edit panel */}
+                    {editingClipId === clip.id && (
+                      <div className="mt-1 p-3 rounded-lg bg-zinc-800/80 border border-zinc-700 space-y-2">
+                        <textarea
+                          rows={2}
+                          placeholder={lang === 'zh'
+                            ? '描述修改意图，例如：把背景换成咖啡馆、让角色挥手...'
+                            : 'Describe the edit, e.g. change background to a café, make character wave...'}
+                          value={editPrompt}
+                          onChange={e => setEditPrompt(e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-2.5 py-1.5 text-white placeholder:text-zinc-600 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        />
+                        <div className="flex items-center justify-between">
+                          <button
+                            onClick={() => setKeepSound(s => !s)}
+                            className={`flex items-center gap-1.5 text-xs transition-colors ${keepSound ? 'text-violet-400' : 'text-zinc-500'}`}
+                          >
+                            {keepSound ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                            {lang === 'zh'
+                              ? (keepSound ? '保留原音' : '静音')
+                              : (keepSound ? 'Keep audio' : 'Mute')}
+                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setEditingClipId(null)}
+                              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                            >
+                              {lang === 'zh' ? '取消' : 'Cancel'}
+                            </button>
+                            <Button
+                              size="sm"
+                              onClick={() => submitClipEdit(clip.id)}
+                              disabled={editSubmitting || !editPrompt.trim()}
+                              className="h-6 px-3 text-xs bg-violet-600 hover:bg-violet-700 text-white"
+                            >
+                              {editSubmitting
+                                ? <Loader2 size={11} className="animate-spin" />
+                                : (lang === 'zh' ? '提交编辑' : 'Submit')}
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-zinc-600">
+                          {lang === 'zh'
+                            ? '使用 Kling v3-omni 编辑，完成后自动重新合成视频'
+                            : 'Edited via Kling v3-omni. Final video re-stitches automatically.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

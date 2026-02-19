@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { submitSimpleVideo } from '@/lib/kling'
+import { submitSimpleVideo, submitOmniVideo, submitVideoToVideo } from '@/lib/kling'
 import { classifyKlingResponse } from '@/lib/video-router'
+import { getPresignedUrl, uploadToR2 } from '@/lib/r2'
 import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
 import { deductCredits, createClipRecords, failClipAndCheckJob } from '@/lib/job-service'
@@ -10,6 +11,26 @@ import type { Influencer } from '@/types'
 
 const REMIX_STYLE_LABELS: Record<string, string> = {
   commentary: '网红解说', reaction: '反应视频', duet: '合拍二创', remake: '同款翻拍',
+}
+
+const REMIX_STYLE_EN: Record<string, string> = {
+  commentary: 'commentary style — react and explain in your own voice',
+  reaction:   'reaction video — show genuine surprise/emotion while watching',
+  duet:       'duet collab — respond side-by-side, match the original energy',
+  remake:     'faithful recreation — same vibe, same beats, your personality',
+}
+
+// Download a video URL and mirror to R2 so Kling can access it without expiry.
+// Returns the R2 public URL, or null if download fails (caller falls back gracefully).
+async function mirrorVideoToR2(videoUrl: string, jobId: number): Promise<string | null> {
+  try {
+    const res = await fetch(videoUrl, { signal: AbortSignal.timeout(15_000) })
+    if (!res.ok) return null
+    const buffer = Buffer.from(await res.arrayBuffer())
+    return await uploadToR2(`remix-refs/job-${jobId}.mp4`, buffer, 'video/mp4')
+  } catch {
+    return null
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -34,13 +55,25 @@ export async function POST(req: NextRequest) {
   type RemixClip = { index: number; speaker: string; dialogue: string; shot_description: string; duration: number }
   let script: RemixClip[] = []
   try {
-    const userPrompt = `你是${influencer.name}，${influencer.tagline}。\n说话风格：${influencer.speaking_style || '自然活泼'}\n\n为以下视频做"${REMIX_STYLE_LABELS[remixStyle] || '二创'}"：\n视频：${videoUrl}\n标题：${videoTitle || ''}\n\n生成${platform}竖屏短视频脚本（${aspectRatio}），约30秒，3-4片段，以你的风格解读。\n\nJSON格式：[{"index":0,"speaker":"${influencer.slug}","dialogue":"台词","shot_description":"分镜描述","duration":8}]`
+    const styleDesc = REMIX_STYLE_EN[remixStyle] || 'remix'
+    const userPrompt = `You are ${influencer.name}, ${influencer.tagline}.
+Speaking style: ${influencer.speaking_style || 'natural and energetic'}
+
+Create a "${REMIX_STYLE_LABELS[remixStyle] || '二创'}" (${styleDesc}) of this video:
+Video: ${videoUrl}
+Title: ${videoTitle || ''}
+
+Generate a ${platform} vertical short video script (~30s, 3-4 clips) in your style.
+${lang === 'en' ? 'Write all dialogue in English.' : '所有台词用中文写。'}
+
+Return JSON: [{"index":0,"speaker":"${influencer.slug}","dialogue":"line","shot_description":"shot desc","duration":8}]`
+
     script = await callGeminiJson<RemixClip[]>({
       systemPrompt: `You are ${influencer.name}, ${influencer.tagline}.`,
       userPrompt,
     })
   } catch {
-    script = [{ index: 0, speaker: influencer.slug, dialogue: `来看这个视频，我来解读一下。`, shot_description: '网红正面出镜', duration: 10 }]
+    script = [{ index: 0, speaker: influencer.slug, dialogue: lang === 'en' ? `Let me break this down for you.` : `来看这个视频，我来解读一下。`, shot_description: 'Medium shot, influencer facing camera, studio background', duration: 10 }]
   }
 
   const { data: job, error: jobErr } = await supabase.from('jobs').insert({
@@ -49,6 +82,7 @@ export async function POST(req: NextRequest) {
     platform, aspect_ratio: aspectRatio || '9:16',
     influencer_ids: [influencerId], script, credit_cost: CREDIT_COSTS.remix,
   }).select().single()
+
   if (jobErr) {
     await service.rpc('add_credits', {
       p_user_id: user.id,
@@ -58,17 +92,83 @@ export async function POST(req: NextRequest) {
     return apiError(jobErr.message, 500)
   }
 
-  const clips = await createClipRecords(service, job.id, script)
-  const styleDescMap: Record<string, string> = { commentary: 'commentary style', reaction: 'reaction video', duet: 'duet', remake: 'remake/recreation' }
-  const styleDesc = styleDescMap[remixStyle as string] || ''
+  await createClipRecords(service, job.id, script)
+
+  // Get presigned URL for influencer image
+  const frontalKey = (influencer as Influencer).frontal_image_url?.split('/dreamlab-assets/')[1]
+  const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : (influencer as Influencer).frontal_image_url || ''
+
+  const styleDesc = REMIX_STYLE_EN[remixStyle as string] || ''
   const callbackUrl = getCallbackUrl()
+  const inf = influencer as Influencer
+
+  // Mirror reference video to R2 if influencer supports reference-to-video
+  // Only attempt if influencer has a Subject Library element registered
+  const referenceVideoUrl = inf.kling_element_id ? await mirrorVideoToR2(videoUrl, job.id) : null
 
   await Promise.allSettled(script.map(async (clip) => {
-    const prompt = `${clip.shot_description}. ${influencer.name}: ${influencer.speaking_style || 'energetic'}. [VOICE: ${influencer.voice_prompt}]. "${clip.dialogue}". ${styleDesc}`
-    const resp = await submitSimpleVideo({ prompt, imageUrl: influencer.frontal_image_url || '', durationS: clip.duration, aspectRatio: aspectRatio || '9:16', callbackUrl })
+    let resp
+
+    if (inf.kling_element_id && referenceVideoUrl) {
+      // ── Tier 1: Omni video-to-video (feature mode) ───────────────────────────
+      // Inherits the framing/motion energy of the source video while replacing
+      // the character with the influencer. "feature" = cinematic style reference.
+      const prompt = [
+        `${clip.shot_description}.`,
+        `${inf.name} says: "${clip.dialogue}"`,
+        `[VOICE: ${inf.voice_prompt}]`,
+        styleDesc,
+      ].filter(Boolean).join(' ')
+
+      resp = await submitVideoToVideo({
+        prompt,
+        imageUrl,
+        referenceVideoUrl,
+        referType: 'feature',
+        keepOriginalSound: false,
+        elementId: inf.kling_element_id,
+        voiceId: inf.kling_element_voice_id ?? undefined,
+        totalDuration: clip.duration,
+        aspectRatio: aspectRatio || '9:16',
+        callbackUrl,
+      })
+
+    } else if (inf.kling_element_id) {
+      // ── Tier 2: Omni without reference (character + voice consistency) ───────
+      const prompt = [
+        `${clip.shot_description}.`,
+        `${inf.name} says: "${clip.dialogue}"`,
+        `[VOICE: ${inf.voice_prompt}]`,
+        styleDesc,
+      ].filter(Boolean).join(' ')
+
+      resp = await submitOmniVideo({
+        prompt,
+        imageUrl,
+        elementId: inf.kling_element_id,
+        voiceId: inf.kling_element_voice_id ?? undefined,
+        totalDuration: clip.duration,
+        shotType: 'intelligence',
+        aspectRatio: aspectRatio || '9:16',
+        callbackUrl,
+      })
+
+    } else {
+      // ── Tier 3: Simple image2video fallback ──────────────────────────────────
+      const prompt = `${clip.shot_description}. ${inf.name}: ${inf.speaking_style || 'energetic'}. [VOICE: ${inf.voice_prompt}]. "${clip.dialogue}". ${styleDesc}`
+      resp = await submitSimpleVideo({
+        prompt,
+        imageUrl,
+        durationS: clip.duration,
+        aspectRatio: aspectRatio || '9:16',
+        callbackUrl,
+      })
+    }
+
     const result = classifyKlingResponse(resp)
     if (result.taskId) {
-      await service.from('clips').update({ status: 'submitted', kling_task_id: result.taskId, prompt })
+      await service.from('clips')
+        .update({ status: 'submitted', kling_task_id: result.taskId, prompt: clip.shot_description })
         .eq('job_id', job.id).eq('clip_index', clip.index)
     } else {
       await failClipAndCheckJob(service, job.id, clip.index, result.error ?? 'Submit failed')

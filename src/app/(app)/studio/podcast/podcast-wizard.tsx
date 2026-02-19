@@ -223,6 +223,10 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
     setLoading(false)
   }
 
+  function updateStoryboardDialogue(index: number, value: string) {
+    setStoryboard(prev => prev.map((clip, i) => i === index ? { ...clip, dialogue: value } : clip))
+  }
+
   async function submitJob() {
     setLoading(true)
     const infToSend = selectedInfluencers.length > 0
@@ -686,11 +690,14 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
             </div>
           ) : (
             <>
-              <p className="text-sm text-zinc-500">
-                {lang === 'zh'
-                  ? `${storyboard.length} 个镜头 · 可返回上一步修改台词后重新生成`
-                  : `${storyboard.length} shots · go back to edit dialogue`}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-zinc-500">
+                  {lang === 'zh' ? `${storyboard.length} 个镜头` : `${storyboard.length} shots`}
+                </p>
+                <span className="text-xs text-zinc-600">
+                  {lang === 'zh' ? '台词列可直接编辑' : 'Dialogue column is editable'}
+                </span>
+              </div>
               <div className="overflow-x-auto rounded-xl border border-zinc-800">
                 <table className="w-full text-xs">
                   <thead>
@@ -712,7 +719,14 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
                         <td className="px-3 py-2 text-violet-400">{clip.speaker}</td>
                         <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.shot_type || '—'}</span></td>
                         <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.camera_movement || '—'}</span></td>
-                        <td className="px-3 py-2 text-white max-w-48"><span className="line-clamp-2">{clip.dialogue}</span></td>
+                        <td className="px-3 py-2 max-w-48">
+                          <input
+                            type="text"
+                            value={clip.dialogue ?? ''}
+                            onChange={e => updateStoryboardDialogue(i, e.target.value)}
+                            className="w-full bg-transparent border-b border-zinc-700 focus:border-violet-500 text-white text-xs py-0.5 focus:outline-none"
+                          />
+                        </td>
                         <td className="px-3 py-2 text-zinc-400">{clip.bgm || '—'}</td>
                         <td className="px-3 py-2 text-zinc-500 max-w-32"><span className="line-clamp-1">{clip.voiceover || '—'}</span></td>
                         <td className="px-3 py-2 text-zinc-600">{clip.duration}s</td>

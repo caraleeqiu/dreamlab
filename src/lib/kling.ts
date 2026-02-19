@@ -98,17 +98,15 @@ export async function submitImage2Video(payload: ReturnType<typeof buildClipProm
 }
 
 /**
- * Query task status. Tries image2video endpoint first (covers the vast majority
- * of tasks), then falls back to text2video if no task data is returned.
- * This handles both regular Kling tasks and cinematic (全动画) text2video tasks
- * without needing to store the task type separately.
+ * Query task status. Tries image2video → text2video → omni-video in order.
+ * This handles all Kling task types without needing to store the endpoint type.
  */
 export async function getTaskStatus(taskId: string) {
   const resp = await klingFetch(`/v1/videos/image2video/${taskId}`)
-  // If the task exists and has status data, return it
   if (resp?.data?.task_id || resp?.data?.task_status) return resp
-  // Fall back to text2video endpoint (for cinematic/全动画 tasks)
-  return klingFetch(`/v1/videos/text2video/${taskId}`)
+  const t2v = await klingFetch(`/v1/videos/text2video/${taskId}`)
+  if (t2v?.data?.task_id || t2v?.data?.task_status) return t2v
+  return klingFetch(`/v1/videos/omni-video/${taskId}`)
 }
 
 // Multi-shot image-to-video — single API call for the whole script
@@ -316,6 +314,54 @@ export async function submitOmniVideo(params: {
     body.prompt = params.prompt
   }
 
+  if (params.voiceId) body.voice_list = [{ voice_id: params.voiceId }]
+  if (params.callbackUrl) body.callback_url = params.callbackUrl
+
+  return klingFetch('/v1/videos/omni-video', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+// ── Kling 3.0 Omni Video-to-Video ─────────────────────────────────────────────
+//
+// Two modes via referType:
+//   "feature" — cinematic style reference: new video inherits the framing,
+//               motion, and energy of the source. Used for remix/二创.
+//   "base"    — editing target: modifies the source video per the prompt.
+//               Used for post-editing a generated clip (change BG, etc.)
+//
+// Kling API constraint: sound must be "off" when video_list is present.
+// Use keepOriginalSound to preserve the source video's audio track instead.
+export async function submitVideoToVideo(params: {
+  prompt: string
+  imageUrl: string
+  referenceVideoUrl: string
+  referType: 'feature' | 'base'
+  keepOriginalSound?: boolean
+  elementId?: string
+  voiceId?: string
+  totalDuration: number
+  aspectRatio?: string
+  callbackUrl?: string
+}) {
+  const body: Record<string, unknown> = {
+    model_name: 'kling-v3-omni',
+    mode: 'pro',
+    image: params.imageUrl,
+    prompt: params.prompt,
+    duration: String(Math.min(params.totalDuration, 15)),
+    aspect_ratio: params.aspectRatio ?? '9:16',
+    video_list: [{
+      url: params.referenceVideoUrl,
+      refer_type: params.referType,
+      keep_original_sound: params.keepOriginalSound ? 'yes' : 'no',
+    }],
+    // sound must be 'off' when video_list is present (Kling API restriction)
+    sound: 'off',
+  }
+
+  if (params.elementId) body.element_list = [{ element_id: params.elementId }]
   if (params.voiceId) body.voice_list = [{ voice_id: params.voiceId }]
   if (params.callbackUrl) body.callback_url = params.callbackUrl
 

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, influencers, durationS, lang, castRoles } = await req.json()
+  const { storyTitle, storyIdea, genre, narrativeStyle, hookType, subGenre, seriesMode, seriesName, episodeNumber, previousEpisodeSummary, influencers, durationS, lang, castRoles } = await req.json()
 
   const castDesc = (influencers as Influencer[]).map((inf, i) => {
     const roleName = (castRoles as Record<number, string> | undefined)?.[inf.id]
@@ -68,6 +68,10 @@ export async function POST(req: NextRequest) {
       // Fallback: use last clip's dialogue as cliffhanger hint
       const lastClip = prevJob.script[prevJob.script.length - 1] as { dialogue?: string }
       prevCliffhanger = lastClip?.dialogue || ''
+    }
+    // Final fallback: user-provided summary
+    if (!prevCliffhanger && previousEpisodeSummary) {
+      prevCliffhanger = previousEpisodeSummary
     }
   }
 
