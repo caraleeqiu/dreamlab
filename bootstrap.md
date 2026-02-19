@@ -1,6 +1,6 @@
 # Dreamlab · Bootstrap
 
-> **最后更新**: 2026-02-19 (Round 21)
+> **最后更新**: 2026-02-19 (Round 23)
 > **GitHub**: https://github.com/caraleeqiu/dreamlab
 > **完整项目文档**: `ai-influencer.md`（本目录）
 
@@ -35,6 +35,18 @@
 - **P1 — 恢复任务**：新建 `/api/jobs/recover`（`x-recover-secret` 保护），Supabase Cron 每10分钟触发；找 submitted > 30min 的 clip 重试
 - **新增路由**：`/api/admin/influencers/sync-subjects`（批量注册现有网红到 Subject Library）
 - Kling 3.0 新接口：`createSubject()`、`submitOmniVideo()`
+
+**Round 23 更新（CJK 字幕修复 + Remotion Player + 后编辑体验）：**
+- **NotoSansSC 字体捆绑**：`public/fonts/NotoSansSC-Regular.ttf`（2.4MB）打包进部署；`stitch/route.ts` 的 `FONT_CANDIDATES` 优先读取捆绑字体，解决 Vercel 上汉字字幕显示为方块的问题
+- **FFmpeg drawtext 升级**：无字体时不输出字幕（避免乱码）；字幕加半透明黑色背景框 + 3px 描边，提升可读性；文本截断从 120 字提升到 160 字
+- **Remotion Player 集成**：新建 `src/components/VideoPlayerWithSubtitles.tsx`；job 完成页用 `@remotion/player` 替换裸 `<video>` 标签；字幕基于脚本累积时间戳渲染到视频上层，支持 fade-in/fade-out；右下角「字幕 ON/OFF」切换按钮；支持 9:16 / 16:9 / 1:1 三种比例
+
+**Round 22 更新（element_id 全覆盖 + scene anchor + 微动 + crossfade 拼接）：**
+- **P0 — Subject Library 全面覆盖**：edu/anime/podcast(单主持人)/story 所有路由的 `submitMultiShotVideo` 调用均传入 `elementList`（element_id 优先，frontal_image_url fallback）和 `voiceList`（voice_id 固定声线）；webhook deferred clip 链式提交同步携带 elementList/voiceList
+- **P0 — scene_anchor 新字段**：`ScriptClip.scene_anchor`（纯场景环境锚定，不含角色）；story/route 注入 `[Scene anchor: ...]` 到 prompt；story/script 输出 JSON 包含 scene_anchor，同地点幕共享相同描述
+- **P1 — MOTION_SUFFIX**：所有路由 prompt 末尾注入 `natural micro-movements, realistic breathing, subtle environmental motion`，减少"冻结人偶"AI 感
+- **P1 — Crossfade 拼接**：`stitch/route.ts` 新增 `crossfadeConcat()`：标准化编码（libx264/aac）→ xfade+acrossfade 滤镜链 0.3s 过渡 → fallback 到 hard concat
+- **P2 — 爆款结构**：`podcast/script` 系统提示词加入 Hook/Build/Payoff 三段结构；TikTok/小红书/B站/YouTube 差异化写作风格
 
 **Round 21 更新（帧链式 + 分镜图生成 + Seedance 客户端 + Provider 路由）：**
 - **帧链式（Story/Script 专属）**：story route 仅提交 group 0，groups 1..N 存入 `clips.prompt` 作为 deferred JSON payload；webhook clip 完成时 ffmpeg 提取最后一帧上传 R2，再触发下一 group 提交并以该帧为 `first_frame` 锚点，解决跨 group 接缝"传送门感"

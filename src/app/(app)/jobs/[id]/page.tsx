@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Download, Loader2, CheckCircle2, XCircle, Sparkles, Copy, RefreshCw, Pencil, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import VideoPlayerWithSubtitles from '@/components/VideoPlayerWithSubtitles'
 import type { Job, Clip } from '@/types'
 import { useLanguage } from '@/context/language-context'
 import { t, UI } from '@/lib/i18n'
@@ -246,12 +247,21 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <h2 className="text-sm font-medium text-zinc-400">
                 {lang === 'zh' ? '生成结果' : 'Result'}
               </h2>
-              <video
-                src={job.final_video_url}
-                controls
-                className="w-full max-w-sm mx-auto rounded-xl border border-zinc-700"
-                style={{ aspectRatio: job.aspect_ratio?.replace(':', '/') }}
-              />
+              {job.script && Array.isArray(job.script) && job.script.length > 0 ? (
+                <VideoPlayerWithSubtitles
+                  videoSrc={job.final_video_url}
+                  script={job.script}
+                  aspectRatio={job.aspect_ratio || '9:16'}
+                  className="w-full max-w-sm mx-auto"
+                />
+              ) : (
+                <video
+                  src={job.final_video_url}
+                  controls
+                  className="w-full max-w-sm mx-auto rounded-xl border border-zinc-700"
+                  style={{ aspectRatio: job.aspect_ratio?.replace(':', '/') }}
+                />
+              )}
               <div className="flex justify-center">
                 <a href={job.final_video_url} download
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors">

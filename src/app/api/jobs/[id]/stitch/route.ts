@@ -129,9 +129,17 @@ async function crossfadeConcat(inputPaths: string[], outputPath: string, tmpDir:
 }
 
 const FONT_CANDIDATES = [
+  // Bundled font — available on all platforms including Vercel
+  path.join(process.cwd(), 'public/fonts/NotoSansSC-Regular.ttf'),
+  // Linux system fonts
+  '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+  '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+  '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',
   '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
-  '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+  // macOS system fonts (CJK capable)
+  '/System/Library/Fonts/PingFang.ttc',
+  '/System/Library/Fonts/STHeiti Medium.ttc',
   '/Library/Fonts/Arial.ttf',
   '/System/Library/Fonts/Supplemental/Arial.ttf',
   '/System/Library/Fonts/Helvetica.ttc',
@@ -151,17 +159,20 @@ function findFont(): string | null {
 
 function buildDrawtext(text: string, yOffset = 80): string | null {
   const fontFile = findFont()
+  if (!fontFile) return null   // skip subtitle if no font available — avoids broken glyphs
   const safeText = text
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'")
     .replace(/:/g, '\\:')
-    .slice(0, 120)
-  const fontPart = fontFile ? `fontfile=${fontFile}:` : ''
+    .replace(/\n/g, ' ')
+    .slice(0, 160)
   return (
-    `drawtext=${fontPart}` +
-    `text='${safeText}':fontcolor=white:fontsize=30:` +
-    `borderw=2:bordercolor=black@0.8:` +
-    `x=(w-text_w)/2:y=h-${yOffset}`
+    `drawtext=fontfile=${fontFile}:` +
+    `text='${safeText}':fontcolor=white:fontsize=34:` +
+    `borderw=3:bordercolor=black@0.85:` +
+    `box=1:boxcolor=black@0.35:boxborderw=8:` +
+    `x=(w-text_w)/2:y=h-${yOffset}:` +
+    `line_spacing=8`
   )
 }
 
