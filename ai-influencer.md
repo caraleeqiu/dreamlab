@@ -1,8 +1,132 @@
 # 🎭 Dreamlab - AI Influencer Factory 项目详细文档
 
 > **项目代号**: Dreamlab（AI红网工厂）
-> **最后更新**: 2026-02-19 (Round 12 完结)
-> **状态**: 🟢 **全流程可测试** — 完整导航架构，14个网红图片上线，工作台/任务管理/历史作品全部完成
+> **最后更新**: 2026-02-19 (Round 13 完结)
+> **状态**: 🟢 **全流程可测试** — 4种网红科普模式上线，多 Provider 路由完整架构，webhook 自动合成 PiP + 字幕
+
+## ✅ Round 13（2026-02-19）— 网红科普 Hub + 全动画 + 论文解读 + 多Provider架构
+
+### 新增/修改文件
+
+| 文件 | 作用 |
+|------|------|
+| `src/app/(app)/studio/edu/page.tsx` | **重建为 Hub 页面**：4张子类型卡片（口播/动画/全动画/论文） |
+| `src/app/(app)/studio/edu/talk/` | 口播科普完整向导（5步，violet配色，15积分） |
+| `src/app/(app)/studio/edu/animated/` | 动画科普故事完整向导（5步，amber配色，30积分） |
+| `src/app/(app)/studio/edu/cinematic/` | **新** 全动画科普向导（5步，emerald配色，20积分，无出镜角色） |
+| `src/app/(app)/studio/edu/paper/` | **新** 论文解读向导（6步，sky配色，40积分，Napkin PiP） |
+| `src/app/api/studio/edu/extract/route.ts` | **新** 共享内容提取（URL/文本 → Gemini → EduContent） |
+| `src/app/api/studio/edu/talk/script/route.ts` | **新** 口播脚本生成（Hook-Explain-Apply-Wonder框架） |
+| `src/app/api/studio/edu/talk/route.ts` | **新** 口播视频提交（Kling multi-shot，forceKling） |
+| `src/app/api/studio/edu/animated/script/route.ts` | **新** 动画脚本生成（故事弧线：困境→探索→揭示→突破→收尾） |
+| `src/app/api/studio/edu/animated/route.ts` | **新** 动画视频提交（6种动漫风格，forceKling） |
+| `src/app/api/studio/edu/cinematic/script/route.ts` | **新** 全动画脚本（纯场景，无人物，6种视觉风格） |
+| `src/app/api/studio/edu/cinematic/route.ts` | **新** 全动画提交（Kling text2video，1:1 clip映射） |
+| `src/app/api/studio/edu/paper/diagrams/route.ts` | **新** Napkin分镜图生成（每个知识点并行生成） |
+| `src/app/api/studio/edu/paper/script/route.ts` | **新** 论文解读脚本（每段含 diagram_index） |
+| `src/app/api/studio/edu/paper/route.ts` | **新** 论文解读提交（diagram_urls 存入 job.metadata） |
+| `src/lib/napkin.ts` | **新** Napkin AI 客户端（submit→poll→返回图片URL） |
+| `src/lib/seedance.ts` | **新** Seedance 客户端存根（API 待发布，含 TODO） |
+| `src/lib/video-utils.ts` | **重写** 新增 `groupClipsByProvider()` / `annotateProviders()` / `resolveClipProvider()` / `getProviderMix()` |
+| `src/lib/kling.ts` | 新增 `submitText2Video()` / `getTaskStatus()` 双端点回退（image2video → text2video） |
+| `src/lib/config.ts` | 新增 `edu_talk:15` / `edu_animated:30` / `edu_paper:40` / `edu_cinematic:20` |
+| `src/types/index.ts` | `ScriptClip` 新增 `provider?` / `Clip` 新增 `provider?` + `task_id?` / `Influencer` 新增 `kling_element_id?` |
+| `src/app/api/webhooks/kling/route.ts` | **扩展 stitchVideo**：自动检测 paper 模式 → PiP合成；所有模式自动烧字幕；字体路径跨平台探测 |
+| `supabase/migrations/002_multi_provider_clips.sql` | `clips.provider` / `clips.task_id` / `jobs.metadata` / `influencers.kling_element_id` |
+
+---
+
+### 1. Edu Hub 架构（4 个子类型）
+
+```
+/studio/edu  ← Hub 页面
+  ├── /talk       🎙️ 口播科普    15积分  violet  有角色台词 → Kling
+  ├── /animated   🎨 动画科普故事 30积分  amber   有角色台词 → Kling
+  ├── /cinematic  🎬 全动画科普  20积分  emerald 无角色 → Kling text2video → 未来 Seedance
+  └── /paper      📄 论文解读    40积分  sky     有角色PiP → Kling + Napkin分镜图
+```
+
+全部 jobs 写入 `type: 'edu'`，通过 `jobs.title` 前缀区分，`jobs.metadata.sub_type` 区分处理逻辑。
+
+---
+
+### 2. 多 Provider 路由
+
+**clip 路由决策树**：
+```
+ScriptClip.provider 显式设置？
+  ✓ → 用指定 provider
+  ✗ → 有 dialogue？ → 'kling'（角色锚定）
+       否 → 'seedance'（纯场景，API待发布时启用）
+```
+
+**各模式 forceKling**：`talk` / `animated` / `paper` 均使用 `annotateProviders(clips, { forceKling: true })`，因为角色出现在每一帧。
+
+**cinematic 模式**：`provider: 'seedance'`，当前回退 Kling text2video，Seedance API 上线后直接切换。
+
+**分组逻辑**：`groupClipsByProvider()` 保证同一 batch 内 provider 相同，且遵守各 provider 的 shot/duration 限制。
+
+---
+
+### 3. Webhook 自动后期（stitchVideo 扩展）
+
+| 检测条件 | 处理 |
+|---------|------|
+| `job.metadata.sub_type === 'paper'` | 每段：Napkin 分镜图全屏背景 + 角色 PiP 右下角（28%宽）+ 底部字幕 |
+| 普通 edu/talk/animated | 每段烧录字幕（dialogue文本）|
+| 无字体可用 | 优雅降级，跳过字幕但视频正常完成 |
+| 只有1段处理后视频 | 跳过 concat，直接上传 |
+
+**字体探测顺序**（macOS + Linux/Vercel）：
+```
+/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf
+/Library/Fonts/Arial.ttf
+/System/Library/Fonts/Supplemental/Arial.ttf
+/System/Library/Fonts/Helvetica.ttc
+```
+
+---
+
+### 4. Kling text2video（全动画）
+
+- `submitText2Video()` → `POST /v1/videos/text2video`（无需参考图）
+- `getTaskStatus()` 先查 `image2video` 端点，无结果回退 `text2video` 端点
+- cinematic route：1:1 映射（每个 ScriptClip = 1个 text2video 任务），不分组
+- 未来 Seedance 可直接替换 `submitText2Video()` 调用
+
+---
+
+### 5. Napkin AI 分镜图
+
+- `POST /v1/diagrams` → 提交（返回 job_id）
+- `GET /v1/diagrams/{id}` → 轮询（2s 间隔，最长 2 分钟）
+- `generateDiagramsForKeyPoints()` → 并行为所有知识点生成，失败返回空数组（非阻断）
+- 图片 URL 存入 `job.metadata.diagram_urls`，webhook 在 PiP 合成时读取
+
+---
+
+### 测试优先级
+
+| 优先级 | 功能 | 前提 |
+|--------|------|------|
+| 🔴 必须先做 | 跑 `002_multi_provider_clips.sql` 迁移 | Supabase SQL Editor |
+| ✅ 可立即测 | `/studio/edu/talk` 全流程 | ngrok + Kling 额度 |
+| ✅ 可立即测 | `/studio/edu/animated` 全流程 | 同上 |
+| ⚠️ 需验证 | `/studio/edu/cinematic` text2video 端点 | 看 clips 是否拿到 task_id |
+| ⚠️ 需先验证 Napkin | `/studio/edu/paper` 论文解读 | curl 测 `POST /v1/diagrams` |
+
+---
+
+### 待完成（下一轮）
+
+- [ ] Seedance API 集成（等 Volcengine/ByteDance 发布 REST API）
+- [ ] Napkin API 端点验证（实际路径可能不同，需按返回 JSON 调整 `lib/napkin.ts`）
+- [ ] cinematic text2video webhook 状态追踪验证
+- [ ] 字幕 CJK 字体支持（Vercel 环境需额外字体包）
+- [ ] Clip 重试机制（`retry_count` 字段，最多 2 次）
+
+---
 
 ## ✅ Round 12（2026-02-19）— 运镜 + Provider路由 + Subject Library + 剧集系列 + 论文解读
 
