@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { callGeminiJson } from '@/lib/gemini'
 
 // Opening hook types — same 5 archetypes as story, anime-specific framing
 const HOOK_PROMPT: Record<string, string> = {
@@ -256,34 +257,10 @@ Return as JSON array, no markdown code blocks:
 Return exactly ${clipCount} scenes.`
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.85,
-            // Enough tokens for 12-clip scripts
-            maxOutputTokens: 4096,
-          },
-        }),
-      }
-    )
-    const data = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!text) {
-      console.error('Anime script: no text from Gemini', JSON.stringify(data))
-      return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })
-    }
-    const script = JSON.parse(text)
+    const script = await callGeminiJson<Record<string, unknown>[]>({ systemPrompt, userPrompt })
     if (!Array.isArray(script)) throw new Error('Expected array from Gemini')
     return NextResponse.json({ script })
-  } catch (e: unknown) {
-    console.error('Anime script error:', e)
-    return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })
+  } catch (err) {
+    return NextResponse.json({ error: `生成失败: ${(err as Error).message}` }, { status: 500 })
   }
 }

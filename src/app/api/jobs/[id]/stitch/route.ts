@@ -1,0 +1,251 @@
+import { NextResponse, type NextRequest } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { uploadToR2 } from '@/lib/r2'
+import { createLogger } from '@/lib/logger'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import ffmpeg from 'fluent-ffmpeg'
+import ffmpegPath from 'ffmpeg-static'
+
+if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath)
+
+const logger = createLogger('jobs:stitch')
+
+// Vercel Pro: up to 300s execution time for this route
+// Hobby plan: capped at 60s — upgrade required for long videos
+export const maxDuration = 300
+export const runtime = 'nodejs'
+
+const STITCH_SECRET = process.env.RECOVER_SECRET
+
+// POST /api/jobs/[id]/stitch
+// Triggered by webhook when all clips are done.
+// Protected by same x-stitch-secret as recover route.
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (STITCH_SECRET) {
+    const secret = request.headers.get('x-stitch-secret')
+    if (secret !== STITCH_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
+
+  const { id } = await params
+  const jobId = parseInt(id, 10)
+  if (isNaN(jobId)) return NextResponse.json({ error: 'Invalid job id' }, { status: 400 })
+
+  const service = await createServiceClient()
+  await stitchVideo(service, jobId)
+  return NextResponse.json({ ok: true })
+}
+
+// ─── ffmpeg helpers ───────────────────────────────────────────────────────────
+
+function runFfmpeg(cmd: ReturnType<typeof ffmpeg>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    cmd.on('end', () => resolve()).on('error', (err: Error) => reject(err)).run()
+  })
+}
+
+const FONT_CANDIDATES = [
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+  '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+  '/Library/Fonts/Arial.ttf',
+  '/System/Library/Fonts/Supplemental/Arial.ttf',
+  '/System/Library/Fonts/Helvetica.ttc',
+]
+let _resolvedFont: string | null | undefined = undefined
+
+function findFont(): string | null {
+  if (_resolvedFont !== undefined) return _resolvedFont
+  for (const p of FONT_CANDIDATES) {
+    try {
+      if (fs.existsSync(p)) { _resolvedFont = p; return p }
+    } catch { /* ignore */ }
+  }
+  _resolvedFont = null
+  return null
+}
+
+function buildDrawtext(text: string, yOffset = 80): string | null {
+  const fontFile = findFont()
+  const safeText = text
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/:/g, '\\:')
+    .slice(0, 120)
+  const fontPart = fontFile ? `fontfile=${fontFile}:` : ''
+  return (
+    `drawtext=${fontPart}` +
+    `text='${safeText}':fontcolor=white:fontsize=30:` +
+    `borderw=2:bordercolor=black@0.8:` +
+    `x=(w-text_w)/2:y=h-${yOffset}`
+  )
+}
+
+async function composePipClip(opts: {
+  characterVideoPath: string
+  diagramImagePath: string | null
+  outputPath: string
+  dialogue: string
+  aspectRatio: string
+}): Promise<void> {
+  const { characterVideoPath, diagramImagePath, outputPath, dialogue, aspectRatio } = opts
+  const [wStr, hStr] = aspectRatio.split(':')
+  const baseW = 1080
+  const baseH = Math.round(baseW * parseInt(hStr) / parseInt(wStr))
+  const pipW = Math.round(baseW * 0.28)
+  const pipX = baseW - pipW - 20
+  const pipY = baseH - Math.round(pipW * parseInt(hStr) / parseInt(wStr)) - 110
+  const subtitleFilter = dialogue.trim() ? buildDrawtext(dialogue) : null
+
+  if (diagramImagePath) {
+    const filters: string[] = [
+      `[0:v]scale=${baseW}:${baseH},setsar=1[bg]`,
+      `[1:v]scale=${pipW}:-2[pip]`,
+      `[bg][pip]overlay=${pipX}:${pipY}${subtitleFilter ? '[composed]' : '[out]'}`,
+    ]
+    if (subtitleFilter) filters.push(`[composed]${subtitleFilter}[out]`)
+
+    await runFfmpeg(
+      ffmpeg()
+        .input(diagramImagePath).inputOptions(['-loop', '1'])
+        .input(characterVideoPath)
+        .complexFilter(filters.join(';'), 'out')
+        .outputOptions(['-map', '[out]', '-map', '1:a?', '-c:v', 'libx264', '-crf', '23', '-preset', 'fast', '-c:a', 'aac', '-shortest'])
+        .output(outputPath),
+    )
+  } else {
+    if (!subtitleFilter) { fs.copyFileSync(characterVideoPath, outputPath); return }
+    await runFfmpeg(
+      ffmpeg()
+        .input(characterVideoPath)
+        .complexFilter(`[0:v]${subtitleFilter}[out]`, 'out')
+        .outputOptions(['-map', '[out]', '-map', '0:a?', '-c:v', 'libx264', '-crf', '23', '-preset', 'fast', '-c:a', 'aac'])
+        .output(outputPath),
+    )
+  }
+}
+
+async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClient>>, jobId: number) {
+  const { data: job } = await service.from('jobs').select('metadata, script, user_id, credit_cost').eq('id', jobId).single()
+  const { data: clips } = await service.from('clips').select('lipsync_url, clip_index').eq('job_id', jobId).order('clip_index')
+
+  if (!clips?.length) {
+    await service.from('jobs').update({ status: 'failed', error_msg: 'No clips to stitch' }).eq('id', jobId)
+    await refundCredits(service, job)
+    return
+  }
+
+  const isPaper = job?.metadata?.sub_type === 'paper'
+  const diagramUrls: string[][] = isPaper ? (job?.metadata?.diagram_urls ?? []) : []
+  const scriptClips: Array<{ dialogue?: string; diagram_index?: number }> = job?.script ?? []
+
+  // Fast path: single clip, no PiP
+  if (clips.length === 1 && !isPaper) {
+    await service.from('jobs').update({
+      status: 'done',
+      final_video_url: clips[0].lipsync_url,
+      updated_at: new Date().toISOString(),
+    }).eq('id', jobId)
+    return
+  }
+
+  const tmpDir = path.join(os.tmpdir(), `dreamlab_job_${jobId}`)
+  try {
+    fs.mkdirSync(tmpDir, { recursive: true })
+
+    for (const clip of clips) {
+      const res = await fetch(clip.lipsync_url)
+      if (!res.ok) throw new Error(`Failed to download clip ${clip.clip_index}: ${res.status}`)
+      fs.writeFileSync(path.join(tmpDir, `clip_${clip.clip_index}.mp4`), Buffer.from(await res.arrayBuffer()))
+    }
+
+    let processedPaths: string[]
+
+    if (isPaper) {
+      processedPaths = await Promise.all(clips.map(async clip => {
+        const scriptClip = scriptClips[clip.clip_index] ?? {}
+        const diagIdx = scriptClip.diagram_index ?? clip.clip_index
+        const diagImgUrl = (diagramUrls[diagIdx] ?? [])[0] ?? null
+        let diagImgPath: string | null = null
+        if (diagImgUrl) {
+          try {
+            const imgRes = await fetch(diagImgUrl)
+            if (imgRes.ok) {
+              diagImgPath = path.join(tmpDir, `diag_${clip.clip_index}.jpg`)
+              fs.writeFileSync(diagImgPath, Buffer.from(await imgRes.arrayBuffer()))
+            }
+          } catch { /* non-fatal */ }
+        }
+        const composedPath = path.join(tmpDir, `composed_${clip.clip_index}.mp4`)
+        await composePipClip({
+          characterVideoPath: path.join(tmpDir, `clip_${clip.clip_index}.mp4`),
+          diagramImagePath: diagImgPath,
+          outputPath: composedPath,
+          dialogue: scriptClip.dialogue ?? '',
+          aspectRatio: '9:16',
+        })
+        return composedPath
+      }))
+    } else {
+      processedPaths = await Promise.all(clips.map(async clip => {
+        const dialogue = (scriptClips[clip.clip_index] ?? {}).dialogue ?? ''
+        if (!dialogue) return path.join(tmpDir, `clip_${clip.clip_index}.mp4`)
+        const outputPath = path.join(tmpDir, `sub_${clip.clip_index}.mp4`)
+        await composePipClip({
+          characterVideoPath: path.join(tmpDir, `clip_${clip.clip_index}.mp4`),
+          diagramImagePath: null,
+          outputPath,
+          dialogue,
+          aspectRatio: '9:16',
+        })
+        return outputPath
+      }))
+    }
+
+    const finalPath = path.join(tmpDir, 'final.mp4')
+    if (processedPaths.length === 1) {
+      fs.copyFileSync(processedPaths[0], finalPath)
+    } else {
+      const listPath = path.join(tmpDir, 'concat.txt')
+      fs.writeFileSync(listPath, processedPaths.map(p => `file '${p}'`).join('\n'))
+      await runFfmpeg(
+        ffmpeg().input(listPath).inputOptions(['-f', 'concat', '-safe', '0']).outputOptions(['-c', 'copy']).output(finalPath),
+      )
+    }
+
+    const finalUrl = await uploadToR2(`jobs/${jobId}/final.mp4`, fs.readFileSync(finalPath), 'video/mp4')
+    await service.from('jobs').update({ status: 'done', final_video_url: finalUrl, updated_at: new Date().toISOString() }).eq('id', jobId)
+    logger.info('stitch complete', { jobId, finalUrl })
+
+  } catch (err) {
+    logger.error('stitch failed, falling back to first clip', { jobId, err: String(err) })
+    await service.from('jobs').update({
+      status: 'done',
+      final_video_url: clips[0].lipsync_url,
+      updated_at: new Date().toISOString(),
+    }).eq('id', jobId)
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
+  }
+}
+
+// Refund credits when a job ends in hard failure (no clips succeeded)
+async function refundCredits(service: Awaited<ReturnType<typeof createServiceClient>>, job: { user_id: string; credit_cost: number } | null) {
+  if (!job?.user_id || !job.credit_cost) return
+  try {
+    await service.rpc('add_credits', {
+      p_user_id: job.user_id,
+      p_amount: job.credit_cost,
+      p_reason: 'refund:stitch_failed',
+    })
+    logger.info('credits refunded', { userId: job.user_id, amount: job.credit_cost })
+  } catch (err) {
+    logger.error('credit refund failed', { err: String(err) })
+  }
+}

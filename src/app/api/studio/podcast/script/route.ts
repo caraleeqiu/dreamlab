@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { callGeminiJson } from '@/lib/gemini'
 import type { ScriptClip, Influencer } from '@/types'
 import { PLATFORMS } from '@/lib/language'
 
@@ -91,24 +92,10 @@ Return strict JSON array, each element:
   "duration": 15
 }`
 
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + process.env.GEMINI_API_KEY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ parts: [{ text: userPrompt }] }],
-      generationConfig: { responseMimeType: 'application/json' },
-    }),
-  })
-
-  const data = await res.json()
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) return NextResponse.json({ error: 'AI 脚本生成失败' }, { status: 500 })
-
   try {
-    const clips: ScriptClip[] = JSON.parse(text)
+    const clips = await callGeminiJson<ScriptClip[]>({ systemPrompt, userPrompt })
     return NextResponse.json(clips)
-  } catch {
-    return NextResponse.json({ error: '脚本解析失败', raw: text }, { status: 500 })
+  } catch (err) {
+    return NextResponse.json({ error: `脚本生成失败: ${(err as Error).message}` }, { status: 500 })
   }
 }

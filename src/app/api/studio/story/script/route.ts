@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Influencer } from '@/types'
+import { callGeminiJson } from '@/lib/gemini'
 
 const HOOK_PROMPT: Record<string, string> = {
   midaction:  '【开场钩子：开场即危机】第一幕必须从事件最紧张的瞬间切入，无任何铺垫。角色已经在对某件令人震惊的事情做出反应，观众直接进入最高张力时刻。',
@@ -129,25 +130,11 @@ ${hookDesc}
 ]`
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 1.0 },
-        }),
-      }
-    )
-    const data = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
-    const scriptArr = JSON.parse(text) as Array<{dialogue?: string; shot_description?: string}>
+    const scriptArr = await callGeminiJson<Array<{dialogue?: string; shot_description?: string}>>({ systemPrompt: '', userPrompt: prompt })
     const lastClip = scriptArr[scriptArr.length - 1]
     const cliffhanger = lastClip?.dialogue || lastClip?.shot_description || ''
     return NextResponse.json({ script: scriptArr, cliffhanger })
-  } catch (e: unknown) {
-    console.error('Story script error:', e)
-    return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })
+  } catch (err) {
+    return NextResponse.json({ error: `生成失败: ${(err as Error).message}` }, { status: 500 })
   }
 }

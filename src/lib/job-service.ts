@@ -62,6 +62,22 @@ export async function failClipAndCheckJob(
       error_msg: allDone ? undefined : '部分切片提交失败',
     })
     .eq('id', jobId)
+
+  // 若 job 以失败告终（提交阶段全部失败），退还积分
+  if (!allDone) {
+    const { data: job } = await service
+      .from('jobs')
+      .select('user_id, credit_cost')
+      .eq('id', jobId)
+      .single()
+    if (job?.user_id && job.credit_cost > 0) {
+      service.rpc('add_credits', {
+        p_user_id: job.user_id,
+        p_amount: job.credit_cost,
+        p_reason: `refund:submit_failed:${jobId}`,
+      }).catch(() => {})
+    }
+  }
 }
 
 /**

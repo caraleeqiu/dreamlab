@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-
-const GEMINI_KEY = process.env.GEMINI_API_KEY!
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+import { callGeminiJson } from '@/lib/gemini'
 
 // Visual style guidance for cinematic AI animation (no character reference)
 const VISUAL_STYLES: Record<string, string> = {
@@ -107,29 +105,10 @@ Return strict JSON array (no markdown):
 Return exactly ${clipCount} scenes.`
 
   try {
-    const res = await fetch(
-      `${GEMINI_BASE}/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.85,
-            maxOutputTokens: 4096,
-          },
-        }),
-      },
-    )
-    const data = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!text) return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })
-    const script = JSON.parse(text)
+    const script = await callGeminiJson<Record<string, unknown>[]>({ systemPrompt: '', userPrompt: prompt })
     if (!Array.isArray(script)) throw new Error('Expected array')
     return NextResponse.json({ script, styleDesc })
-  } catch (e) {
-    console.error('edu/cinematic/script error:', e)
-    return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })
+  } catch (err) {
+    return NextResponse.json({ error: `生成失败: ${(err as Error).message}` }, { status: 500 })
   }
 }

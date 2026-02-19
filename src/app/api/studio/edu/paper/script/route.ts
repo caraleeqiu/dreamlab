@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { Influencer } from '@/types'
-
-const GEMINI_KEY = process.env.GEMINI_API_KEY!
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+import { callGeminiJson } from '@/lib/gemini'
 
 // POST /api/studio/edu/paper/script
 // Generate a paper explainer script aligned with Napkin diagram topics.
@@ -126,25 +124,10 @@ Notes:
 - Dialogue must be conversational, NOT like reading a paper`
 
   try {
-    const res = await fetch(
-      `${GEMINI_BASE}/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.75, maxOutputTokens: 4096 },
-        }),
-      },
-    )
-    const data = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!text) return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })
-    const script = JSON.parse(text)
+    const script = await callGeminiJson<Record<string, unknown>[]>({ systemPrompt: '', userPrompt: prompt })
     if (!Array.isArray(script)) throw new Error('Expected array')
     return NextResponse.json({ script })
-  } catch (e) {
-    console.error('edu/paper/script error:', e)
-    return NextResponse.json({ error: 'Script generation failed' }, { status: 500 })
+  } catch (err) {
+    return NextResponse.json({ error: `生成失败: ${(err as Error).message}` }, { status: 500 })
   }
 }

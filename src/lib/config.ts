@@ -27,6 +27,10 @@ export const CREDIT_PACKAGES = {
 export type CreditPackageId = keyof typeof CREDIT_PACKAGES
 
 // ─── Kling 回调 URL ────────────────────────────────────────────────────────────
+// KLING_WEBHOOK_SECRET 作为 ?whs= 参数附在 URL 中，由 webhook 路由校验。
+// 防止任意方伪造 task_id 触发查询。
 export function getCallbackUrl(): string {
-  return `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
+  const base = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/kling`
+  const secret = process.env.KLING_WEBHOOK_SECRET
+  return secret ? `${base}?whs=${encodeURIComponent(secret)}` : base
 }
