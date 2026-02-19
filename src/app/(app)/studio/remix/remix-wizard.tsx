@@ -13,50 +13,45 @@ import { Textarea } from '@/components/ui/textarea'
 import type { Influencer, Language, RemixAnalysis, Job } from '@/types'
 import { PLATFORMS } from '@/lib/language'
 import { UI, t } from '@/lib/i18n'
+import { CREDIT_COSTS } from '@/lib/config'
 
-// ─── Mode selection ──────────────────────────────────────────────────────────
+// ─── Tab definitions ─────────────────────────────────────────────────────────
 
 type RemixMode = 'visual' | 'splice' | 'imitate'
 
-interface ModeCard {
-  id: RemixMode
-  icon: React.ReactNode
-  titleZh: string
-  titleEn: string
-  descZh: string
-  descEn: string
-  creditCost: number
-}
-
-const MODES: ModeCard[] = [
-  {
-    id: 'visual',
-    icon: <Video size={22} className="text-violet-400" />,
-    titleZh: '换主体',
-    titleEn: 'Visual Remix',
-    descZh: '上传参考视频，替换视频中的主体为你的网红形象',
-    descEn: 'Replace the subject in a reference video with your influencer',
-    creditCost: 5,
+const TAB_META = {
+  visual: {
+    icon: <Video size={14} className="text-violet-400" />,
+    color: 'violet' as const,
+    labelZh: '换主体',
+    labelEn: 'Visual Remix',
+    descZh: '替换视频主体为你的网红形象',
+    descEn: 'Replace the video subject with your influencer',
   },
-  {
-    id: 'splice',
-    icon: <Scissors size={22} className="text-pink-400" />,
-    titleZh: '片段替换',
-    titleEn: 'Segment Splice',
-    descZh: '替换已有视频中的某段时间区间，支持AI生成或直接上传素材',
+  splice: {
+    icon: <Scissors size={14} className="text-pink-400" />,
+    color: 'pink' as const,
+    labelZh: '片段替换',
+    labelEn: 'Segment Splice',
+    descZh: '替换已有视频中的某段时间区间，AI生成或直接上传素材',
     descEn: 'Replace a time segment in an existing video — AI-generate or upload a clip',
-    creditCost: 0,
   },
-  {
-    id: 'imitate',
-    icon: <Wand2 size={22} className="text-cyan-400" />,
-    titleZh: '脚本仿写',
-    titleEn: 'Script Imitation',
+  imitate: {
+    icon: <Wand2 size={14} className="text-cyan-400" />,
+    color: 'cyan' as const,
+    labelZh: '脚本仿写',
+    labelEn: 'Script Imitation',
     descZh: '分析参考视频的叙事结构和风格，用你的网红重新创作同款内容',
     descEn: 'Analyze a reference video\'s narrative structure and recreate it with your influencer',
-    creditCost: 5,
   },
-]
+} satisfies Record<RemixMode, {
+  icon: React.ReactNode
+  color: 'violet' | 'pink' | 'cyan'
+  labelZh: string
+  labelEn: string
+  descZh: string
+  descEn: string
+}>
 
 // ─── Influencer picker (shared) ───────────────────────────────────────────────
 
@@ -135,12 +130,10 @@ type VisualStep = 'source' | 'influencer' | 'platform' | 'confirm'
 
 function VisualRemix({
   lang, credits, influencers,
-  onBack,
 }: {
   lang: Language
   credits: number
   influencers: Influencer[]
-  onBack: () => void
 }) {
   const router = useRouter()
   const [step, setStep] = useState<VisualStep>('source')
@@ -153,7 +146,7 @@ function VisualRemix({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const CREDIT_COST = 5
+  const CREDIT_COST = CREDIT_COSTS.remix
   const platforms = PLATFORMS[lang]
 
   const REMIX_STYLES = [
@@ -249,18 +242,13 @@ function VisualRemix({
               ))}
             </div>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={onBack} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
-              <ArrowLeft size={14} className="mr-1" />{lang === 'zh' ? '返回' : 'Back'}
-            </Button>
-            <Button
-              onClick={() => setStep('influencer')}
-              disabled={!videoUrl.trim()}
-              className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
-            >
-              {t(lang, UI.wizard.nextBtn)} <ArrowRight size={14} className="ml-1" />
-            </Button>
-          </div>
+          <Button
+            onClick={() => setStep('influencer')}
+            disabled={!videoUrl.trim()}
+            className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            {t(lang, UI.wizard.nextBtn)} <ArrowRight size={14} className="ml-1" />
+          </Button>
         </div>
       )}
 
@@ -357,11 +345,9 @@ function VisualRemix({
 function SegmentSplice({
   lang,
   jobs,
-  onBack,
 }: {
   lang: Language
   jobs: Job[]
-  onBack: () => void
 }) {
   const router = useRouter()
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
@@ -380,7 +366,7 @@ function SegmentSplice({
     const start = parseFloat(startS)
     const end = parseFloat(endS)
     if (isNaN(start) || isNaN(end) || end <= start) {
-      setError(lang === 'zh' ? '时间范围无效，结束时间必须大于开始时间' : 'Invalid time range')
+      setError(lang === 'zh' ? '时间范围无效，结束时间必须大于开始时间' : 'Invalid time range: end must be greater than start')
       return
     }
     if (replacementType === 'ai-generate' && !prompt.trim()) {
@@ -409,10 +395,8 @@ function SegmentSplice({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || (lang === 'zh' ? '提交失败' : 'Submit failed'))
       if (data.splicedUrl) {
-        // upload-clip: immediate result, go back to original job
         router.push(`/jobs/${selectedJobId}`)
       } else {
-        // ai-generate: new sub-job created
         router.push(`/jobs/${data.jobId}`)
       }
     } catch (e: unknown) {
@@ -536,20 +520,15 @@ function SegmentSplice({
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
-          <ArrowLeft size={14} className="mr-1" />{lang === 'zh' ? '返回' : 'Back'}
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={submitting || !selectedJobId || !startS || !endS}
-          className="flex-1 bg-pink-600 hover:bg-pink-700 text-white"
-        >
-          {submitting
-            ? <><Loader2 size={14} className="animate-spin mr-2" />{lang === 'zh' ? '处理中...' : 'Processing...'}</>
-            : <><Scissors size={14} className="mr-2" />{lang === 'zh' ? '开始替换' : 'Splice Now'}</>}
-        </Button>
-      </div>
+      <Button
+        onClick={handleSubmit}
+        disabled={submitting || !selectedJobId || !startS || !endS}
+        className="w-full bg-pink-600 hover:bg-pink-700 text-white"
+      >
+        {submitting
+          ? <><Loader2 size={14} className="animate-spin mr-2" />{lang === 'zh' ? '处理中...' : 'Processing...'}</>
+          : <><Scissors size={14} className="mr-2" />{lang === 'zh' ? '开始替换' : 'Splice Now'}</>}
+      </Button>
     </div>
   )
 }
@@ -562,12 +541,10 @@ function ScriptImitation({
   lang,
   credits,
   influencers,
-  onBack,
 }: {
   lang: Language
   credits: number
   influencers: Influencer[]
-  onBack: () => void
 }) {
   const router = useRouter()
   const [step, setStep] = useState<ImitateStep>('source')
@@ -582,7 +559,7 @@ function ScriptImitation({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const CREDIT_COST = 5
+  const CREDIT_COST = CREDIT_COSTS.remix
 
   async function handleAnalyze() {
     if (!videoUrl.trim()) return
@@ -672,26 +649,21 @@ function ScriptImitation({
             <p className="text-xs text-zinc-600">
               {lang === 'zh'
                 ? 'AI 将分析视频的叙事结构、节奏、场景风格，生成可复用的脚本框架'
-                : 'AI will analyze the narrative structure, pacing, and visual style to generate a reusable script framework'}
+                : 'AI will analyze narrative structure, pacing, and visual style to generate a reusable script framework'}
             </p>
           </div>
 
           {analysisError && <p className="text-sm text-red-400">{analysisError}</p>}
 
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={onBack} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
-              <ArrowLeft size={14} className="mr-1" />{lang === 'zh' ? '返回' : 'Back'}
-            </Button>
-            <Button
-              onClick={() => { setStep('analyze'); handleAnalyze() }}
-              disabled={!videoUrl.trim() || analyzing}
-              className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white"
-            >
-              {analyzing
-                ? <><Loader2 size={14} className="animate-spin mr-2" />{lang === 'zh' ? 'AI 分析中...' : 'Analyzing...'}</>
-                : <><Wand2 size={14} className="mr-2" />{lang === 'zh' ? '开始分析' : 'Analyze Video'}</>}
-            </Button>
-          </div>
+          <Button
+            onClick={() => { setStep('analyze'); handleAnalyze() }}
+            disabled={!videoUrl.trim() || analyzing}
+            className="w-full bg-cyan-600 hover:bg-cyan-700 text-white"
+          >
+            {analyzing
+              ? <><Loader2 size={14} className="animate-spin mr-2" />{lang === 'zh' ? 'AI 分析中...' : 'Analyzing...'}</>
+              : <><Wand2 size={14} className="mr-2" />{lang === 'zh' ? '开始分析' : 'Analyze Video'}</>}
+          </Button>
         </div>
       )}
 
@@ -885,7 +857,7 @@ function ScriptImitation({
   )
 }
 
-// ─── Root component ───────────────────────────────────────────────────────────
+// ─── Root component (tabs) ────────────────────────────────────────────────────
 
 interface Props {
   lang: Language
@@ -896,71 +868,37 @@ interface Props {
 
 export default function RemixWizard({ lang, credits, influencers, jobs }: Props) {
   const router = useRouter()
-  const [mode, setMode] = useState<RemixMode | null>(null)
+  const [activeTab, setActiveTab] = useState<RemixMode>('visual')
 
-  if (mode === 'visual') {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => setMode(null)} className="text-zinc-500 hover:text-white transition-colors">
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <Video size={18} className="text-violet-400" />
-              {lang === 'zh' ? '换主体' : 'Visual Remix'}
-            </h1>
-            <p className="text-xs text-zinc-500 mt-0.5">{lang === 'zh' ? '替换视频主体为你的网红形象' : 'Replace the video subject with your influencer'}</p>
-          </div>
-        </div>
-        <VisualRemix lang={lang} credits={credits} influencers={influencers} onBack={() => setMode(null)} />
-      </div>
-    )
-  }
+  const TABS: { id: RemixMode; icon: React.ReactNode; labelZh: string; labelEn: string; activeClass: string }[] = [
+    {
+      id: 'visual',
+      icon: <Video size={14} />,
+      labelZh: '换主体',
+      labelEn: 'Visual Remix',
+      activeClass: 'bg-violet-600/20 text-violet-300 border-violet-500/50',
+    },
+    {
+      id: 'splice',
+      icon: <Scissors size={14} />,
+      labelZh: '片段替换',
+      labelEn: 'Segment Splice',
+      activeClass: 'bg-pink-600/20 text-pink-300 border-pink-500/50',
+    },
+    {
+      id: 'imitate',
+      icon: <Wand2 size={14} />,
+      labelZh: '脚本仿写',
+      labelEn: 'Script Imitation',
+      activeClass: 'bg-cyan-600/20 text-cyan-300 border-cyan-500/50',
+    },
+  ]
 
-  if (mode === 'splice') {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => setMode(null)} className="text-zinc-500 hover:text-white transition-colors">
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <Scissors size={18} className="text-pink-400" />
-              {lang === 'zh' ? '片段替换' : 'Segment Splice'}
-            </h1>
-            <p className="text-xs text-zinc-500 mt-0.5">{lang === 'zh' ? '替换视频中的某段时间区间' : 'Replace a time segment in an existing video'}</p>
-          </div>
-        </div>
-        <SegmentSplice lang={lang} jobs={jobs} onBack={() => setMode(null)} />
-      </div>
-    )
-  }
+  const activeTabMeta = TAB_META[activeTab]
 
-  if (mode === 'imitate') {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => setMode(null)} className="text-zinc-500 hover:text-white transition-colors">
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <Wand2 size={18} className="text-cyan-400" />
-              {lang === 'zh' ? '脚本仿写' : 'Script Imitation'}
-            </h1>
-            <p className="text-xs text-zinc-500 mt-0.5">{lang === 'zh' ? '分析参考视频风格，重新创作同款内容' : 'Analyze a reference video\'s style and recreate it'}</p>
-          </div>
-        </div>
-        <ScriptImitation lang={lang} credits={credits} influencers={influencers} onBack={() => setMode(null)} />
-      </div>
-    )
-  }
-
-  // Mode selection screen
   return (
     <div className="max-w-2xl mx-auto">
+      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => router.back()} className="text-zinc-500 hover:text-white transition-colors">
           <ArrowLeft size={18} />
@@ -969,37 +907,63 @@ export default function RemixWizard({ lang, credits, influencers, jobs }: Props)
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <Scissors size={18} className="text-violet-400" /> {t(lang, UI.wizard.remixTitle)}
           </h1>
-          <p className="text-xs text-zinc-500 mt-0.5">{lang === 'zh' ? '选择创作模式' : 'Choose a creation mode'}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {lang === 'zh' ? activeTabMeta.descZh : activeTabMeta.descEn}
+          </p>
         </div>
       </div>
 
-      <div className="grid gap-3">
-        {MODES.map(m => (
-          <button
-            key={m.id}
-            onClick={() => setMode(m.id)}
-            className="p-5 rounded-2xl border border-zinc-700 bg-zinc-800/50 hover:border-zinc-500 hover:bg-zinc-800 transition-all text-left group"
-          >
-            <div className="flex items-start gap-4">
-              <div className="mt-0.5">{m.icon}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-semibold text-white group-hover:text-violet-200 transition-colors">
-                    {lang === 'zh' ? m.titleZh : m.titleEn}
-                  </h3>
-                  {m.creditCost > 0 ? (
-                    <span className="text-xs text-zinc-500 shrink-0">{m.creditCost} {t(lang, UI.wizard.credits)}</span>
-                  ) : (
-                    <span className="text-xs text-green-500 shrink-0">{lang === 'zh' ? '免费' : 'Free'}</span>
-                  )}
-                </div>
-                <p className="text-sm text-zinc-400 mt-1">{lang === 'zh' ? m.descZh : m.descEn}</p>
-              </div>
-              <ArrowRight size={16} className="text-zinc-600 group-hover:text-zinc-400 transition-colors mt-1 shrink-0" />
-            </div>
-          </button>
-        ))}
+      {/* Tab bar */}
+      <div className="flex gap-1.5 mb-6 p-1 bg-zinc-900/60 rounded-xl border border-zinc-800">
+        {TABS.map(tab => {
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-lg text-xs font-medium transition-all border ${
+                isActive ? tab.activeClass : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
+              }`}
+            >
+              {tab.icon}
+              <span className="hidden sm:inline">{lang === 'zh' ? tab.labelZh : tab.labelEn}</span>
+              <span className="sm:hidden">{lang === 'zh' ? tab.labelZh : tab.labelEn}</span>
+            </button>
+          )
+        })}
       </div>
+
+      {/* Credit badge for current tab */}
+      {activeTab !== 'splice' && (
+        <div className="flex items-center gap-2 mb-4 text-xs text-zinc-500">
+          <span>{lang === 'zh' ? '费用' : 'Cost'}:</span>
+          <span className="px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300">
+            {CREDIT_COSTS.remix} {t(lang, UI.wizard.credits)}
+          </span>
+          <span>{lang === 'zh' ? '余额' : 'Balance'}:</span>
+          <span className={`px-2 py-0.5 rounded-full border ${credits >= CREDIT_COSTS.remix ? 'bg-zinc-800 border-zinc-700 text-zinc-300' : 'bg-amber-900/20 border-amber-700 text-amber-400'}`}>
+            {credits}
+          </span>
+        </div>
+      )}
+      {activeTab === 'splice' && (
+        <div className="flex items-center gap-2 mb-4 text-xs text-zinc-500">
+          <span className="px-2 py-0.5 rounded-full bg-green-900/20 border border-green-700 text-green-400">
+            {lang === 'zh' ? '免费编辑' : 'Free edit'}
+          </span>
+        </div>
+      )}
+
+      {/* Tab content */}
+      {activeTab === 'visual' && (
+        <VisualRemix lang={lang} credits={credits} influencers={influencers} />
+      )}
+      {activeTab === 'splice' && (
+        <SegmentSplice lang={lang} jobs={jobs} />
+      )}
+      {activeTab === 'imitate' && (
+        <ScriptImitation lang={lang} credits={credits} influencers={influencers} />
+      )}
     </div>
   )
 }
