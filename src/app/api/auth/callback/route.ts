@@ -5,6 +5,14 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const error = searchParams.get('error')
+  const errorDescription = searchParams.get('error_description')
+
+  // Handle OAuth errors
+  if (error) {
+    console.error('OAuth error:', error, errorDescription)
+    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(errorDescription || error)}`)
+  }
 
   if (code) {
     const cookieStore = await cookies()
@@ -22,7 +30,14 @@ export async function GET(request: NextRequest) {
         },
       }
     )
-    await supabase.auth.exchangeCodeForSession(code)
+    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (sessionError) {
+      console.error('Session exchange error:', sessionError.message)
+      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(sessionError.message)}`)
+    }
+  } else {
+    return NextResponse.redirect(`${origin}/login?error=no_code`)
   }
 
   return NextResponse.redirect(`${origin}/influencers`)
