@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -98,6 +98,26 @@ function checkVoiceMismatch(personality: string[], voiceValue: string): string |
   return null
 }
 
+// 根据用户填写信息生成默认图片 prompt
+function generateDefaultImagePrompt(type: InfluencerType | '', name: string, personality: string[]): string {
+  if (!type) return ''
+
+  const traits = personality.slice(0, 2).join('、')
+
+  switch (type) {
+    case 'human':
+      return `Professional portrait of ${name || 'a person'}, ${traits ? `personality: ${traits}, ` : ''}half-body shot, natural lighting, high quality, 9:16 aspect ratio`
+    case 'animal':
+      return `Cute ${name || 'animal'} character, ${traits ? `${traits} vibe, ` : ''}expressive face, studio lighting, centered composition, 9:16`
+    case 'virtual':
+      return `Anime style character ${name || ''}, ${traits ? `${traits} personality, ` : ''}vibrant colors, detailed illustration, upper body, 9:16`
+    case 'brand':
+      return `Brand mascot ${name || ''}, ${traits ? `${traits} style, ` : ''}friendly and memorable design, clean background, 9:16`
+    default:
+      return ''
+  }
+}
+
 interface Props {
   onSuccess: (inf: Influencer) => void
   onClose: () => void
@@ -134,6 +154,14 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
   function toggleTag(arr: string[], val: string, max: number): string[] {
     return arr.includes(val) ? arr.filter(x => x !== val) : arr.length < max ? [...arr, val] : arr
   }
+
+  // 进入形象步骤时，自动生成默认 prompt
+  useEffect(() => {
+    if (step === 2 && !imagePrompt && !imageUrl) {
+      const defaultPrompt = generateDefaultImagePrompt(form.type, form.name, form.personality)
+      if (defaultPrompt) setImagePrompt(defaultPrompt)
+    }
+  }, [step, form.type, form.name, form.personality, imagePrompt, imageUrl])
 
   async function generateImage() {
     if (!imagePrompt) return
