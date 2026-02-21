@@ -47,6 +47,18 @@ export async function POST(req: NextRequest) {
     .from('influencers').select('*').eq('id', influencerId).single()
   if (!influencer) return apiError('Influencer not found', 404)
 
+  const inf = influencer as Influencer
+
+  // Validate influencer has a frontal image
+  if (!inf.frontal_image_url) {
+    return apiError(
+      lang === 'en'
+        ? 'This influencer has no avatar image. Please set one first.'
+        : '该网红没有设置头像图片，请先上传头像。',
+      400
+    )
+  }
+
   const service = await createServiceClient()
   const creditError = await deductCredits(service, user.id, CREDIT_COSTS.remix, `remix: ${videoTitle || videoUrl.slice(0, 40)}`, lang || 'zh')
   if (creditError) return creditError
@@ -95,12 +107,11 @@ Return JSON: [{"index":0,"speaker":"${influencer.slug}","dialogue":"line","shot_
   await createClipRecords(service, job.id, script)
 
   // Get presigned URL for influencer image
-  const frontalKey = (influencer as Influencer).frontal_image_url?.split('/dreamlab-assets/')[1]
-  const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : (influencer as Influencer).frontal_image_url || ''
+  const frontalKey = inf.frontal_image_url?.split('/dreamlab-assets/')[1]
+  const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : inf.frontal_image_url!
 
   const styleDesc = REMIX_STYLE_EN[remixStyle as string] || ''
   const callbackUrl = getCallbackUrl()
-  const inf = influencer as Influencer
 
   // Mirror reference video to R2 if influencer supports reference-to-video
   // Only attempt if influencer has a Subject Library element registered

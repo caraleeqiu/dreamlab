@@ -44,13 +44,23 @@ export async function POST(req: NextRequest) {
   if (!influencer) return apiError('Influencer not found', 404)
   const inf = influencer as Influencer
 
+  // Validate influencer has a frontal image
+  if (!inf.frontal_image_url) {
+    return apiError(
+      lang === 'en'
+        ? 'This influencer has no avatar image. Please set one first.'
+        : '该网红没有设置头像图片，请先上传头像。',
+      400
+    )
+  }
+
   const service = await createServiceClient()
   const creditError = await deductCredits(service, user.id, CREDIT_COSTS.remix, `remix-create: ${analysis.narrative.hookType}`, (lang || 'zh') as Language)
   if (creditError) return creditError
 
   // Resolve influencer image
-  const frontalKey = inf.frontal_image_url?.split('/dreamlab-assets/')[1]
-  const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : inf.frontal_image_url || ''
+  const frontalKey = inf.frontal_image_url!.split('/dreamlab-assets/')[1]
+  const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : inf.frontal_image_url!
 
   // Subject Library anchors
   const elementEntry = inf.kling_element_id
