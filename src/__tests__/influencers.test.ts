@@ -24,7 +24,8 @@ describe('BUILTIN_INFLUENCERS 种子数据', () => {
   it('所有内置网红都有图片 URL', () => {
     for (const inf of BUILTIN_INFLUENCERS) {
       expect(inf.frontal_image_url, `${inf.name} 缺少 frontal_image_url`).toBeTruthy()
-      expect(inf.frontal_image_url).toMatch(/^\/influencers\/.*\.png$/)
+      // 支持本地路径 /influencers/xxx.png 或 R2 URL https://xxx.r2.dev/influencers/xxx.png
+      expect(inf.frontal_image_url).toMatch(/^(\/influencers\/|https:\/\/.*\.r2\.dev\/influencers\/).*\.png$/)
     }
   })
 
