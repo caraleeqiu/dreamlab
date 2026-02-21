@@ -267,6 +267,9 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
         }),
       })
       const data = await res.json()
+      if (data.warning) {
+        setPreviewError(data.warning)
+      }
       if (data.previews) {
         const newPreviews: Record<number, string | null> = {}
         for (const p of data.previews) {
@@ -275,6 +278,7 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
         setPreviewImages(prev => ({ ...prev, ...newPreviews }))
       }
     } catch (err) {
+      console.error('Preview generation error:', err)
       setPreviewError(lang === 'zh' ? '预览图生成失败' : 'Preview generation failed')
     } finally {
       setPreviewLoading({})
@@ -787,22 +791,27 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
                 <p className="text-sm text-zinc-500">
                   {lang === 'zh' ? `${storyboard.length} 个镜头` : `${storyboard.length} shots`}
                 </p>
-                <div className="flex items-center gap-2">
-                  {Object.values(previewLoading).some(Boolean) && (
+                <div className="flex items-center gap-3">
+                  {Object.values(previewLoading).some(Boolean) ? (
                     <span className="text-xs text-violet-400 flex items-center gap-1">
                       <Loader2 size={12} className="animate-spin" />
                       {lang === 'zh' ? '生成预览图...' : 'Generating previews...'}
                     </span>
+                  ) : (
+                    <button
+                      onClick={() => generateAllPreviews(storyboard)}
+                      className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors"
+                    >
+                      <RefreshCw size={12} />
+                      {lang === 'zh' ? '生成全部预览图' : 'Generate All Previews'}
+                    </button>
                   )}
-                  <span className="text-xs text-zinc-600">
-                    {lang === 'zh' ? '点击镜头可编辑' : 'Click shot to edit'}
-                  </span>
                 </div>
               </div>
               {previewError && (
                 <p className="text-xs text-red-400">{previewError}</p>
               )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {storyboard.map((clip, i) => (
                   <div key={i} className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden group">
                     {/* Preview image area */}
@@ -850,23 +859,31 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
                         <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">{clip.camera_movement || '—'}</span>
                       </div>
                       {/* Editable shot description */}
-                      <textarea
-                        value={clip.shot_description ?? ''}
-                        onChange={e => updateStoryboardShotDesc(i, e.target.value)}
-                        placeholder={lang === 'zh' ? '镜头描述...' : 'Shot description...'}
-                        rows={2}
-                        className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5
-                                   text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-violet-500"
-                      />
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-500">{lang === 'zh' ? '镜头描述' : 'Shot Desc'}</label>
+                        <textarea
+                          value={clip.shot_description ?? ''}
+                          onChange={e => updateStoryboardShotDesc(i, e.target.value)}
+                          placeholder={lang === 'zh' ? '描述画面内容、构图、光影...' : 'Describe the scene, composition, lighting...'}
+                          rows={4}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2.5 py-2
+                                     text-white text-sm resize-none focus:outline-none focus:ring-1 focus:ring-violet-500
+                                     placeholder:text-zinc-600"
+                        />
+                      </div>
                       {/* Editable dialogue */}
-                      <input
-                        type="text"
-                        value={clip.dialogue ?? ''}
-                        onChange={e => updateStoryboardDialogue(i, e.target.value)}
-                        placeholder={lang === 'zh' ? '台词...' : 'Dialogue...'}
-                        className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5
-                                   text-white text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
-                      />
+                      <div className="space-y-1">
+                        <label className="text-xs text-zinc-500">{lang === 'zh' ? '台词' : 'Dialogue'}</label>
+                        <textarea
+                          value={clip.dialogue ?? ''}
+                          onChange={e => updateStoryboardDialogue(i, e.target.value)}
+                          placeholder={lang === 'zh' ? '角色台词...' : 'Character dialogue...'}
+                          rows={2}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2.5 py-2
+                                     text-white text-sm resize-none focus:outline-none focus:ring-1 focus:ring-violet-500
+                                     placeholder:text-zinc-600"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
