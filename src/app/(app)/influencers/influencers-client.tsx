@@ -116,6 +116,10 @@ export default function InfluencersClient({ lang }: Props) {
     const chatStyleLabels = i.chat_style ? (CHAT_STYLE_LABELS[i.chat_style] || []) : []
     const matchChatStyle = chatStyleLabels.some(label => label.toLowerCase().includes(q))
 
+    // 检查官方/我的标签
+    const ownerLabels = i.is_builtin ? ['官方', 'official'] : ['我的', 'mine', 'my']
+    const matchOwner = ownerLabels.some(label => label.toLowerCase().includes(q))
+
     const matchSearch = !search ||
       // 搜索名字
       i.name.toLowerCase().includes(q) ||
@@ -123,6 +127,8 @@ export default function InfluencersClient({ lang }: Props) {
       matchTypeSearch ||
       // 搜索对谈风格
       matchChatStyle ||
+      // 搜索官方/我的
+      matchOwner ||
       // 搜索原始中文内容
       i.tagline?.toLowerCase().includes(q) ||
       i.personality?.some(p => p.toLowerCase().includes(q)) ||
