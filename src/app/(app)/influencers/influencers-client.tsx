@@ -95,33 +95,52 @@ export default function InfluencersClient({ lang }: Props) {
     brand: ['品牌ip', 'brand'],
   }
 
+  // 对谈风格标签映射
+  const CHAT_STYLE_LABELS: Record<string, string[]> = {
+    dominant: ['主导型', 'dominant'],
+    supportive: ['配合型', 'supportive'],
+    balanced: ['平衡型', 'balanced'],
+  }
+
   const filtered = influencers.filter(i => {
     const q = search.toLowerCase()
     // 获取本地化后的数据用于搜索
     const localized = localizeInfluencer(i, lang)
-    const dynamicTranslation = translations[i.id] as { tagline?: string; personality?: string[]; domains?: string[] } | undefined
+    const dynamicTranslation = translations[i.id] as { tagline?: string; personality?: string[]; domains?: string[]; speaking_style?: string } | undefined
 
     // 检查类型是否匹配搜索词
     const typeLabels = TYPE_LABELS[i.type] || []
     const matchTypeSearch = typeLabels.some(label => label.toLowerCase().includes(q))
+
+    // 检查对谈风格是否匹配
+    const chatStyleLabels = i.chat_style ? (CHAT_STYLE_LABELS[i.chat_style] || []) : []
+    const matchChatStyle = chatStyleLabels.some(label => label.toLowerCase().includes(q))
 
     const matchSearch = !search ||
       // 搜索名字
       i.name.toLowerCase().includes(q) ||
       // 搜索类型标签
       matchTypeSearch ||
+      // 搜索对谈风格
+      matchChatStyle ||
       // 搜索原始中文内容
       i.tagline?.toLowerCase().includes(q) ||
       i.personality?.some(p => p.toLowerCase().includes(q)) ||
       i.domains?.some(d => d.toLowerCase().includes(q)) ||
+      i.speaking_style?.toLowerCase().includes(q) ||
+      i.catchphrases?.some(c => c.toLowerCase().includes(q)) ||
+      i.forbidden?.toLowerCase().includes(q) ||
       // 搜索本地化后的英文内容（内置网红）
       localized.tagline?.toLowerCase().includes(q) ||
       localized.personality?.some(p => p.toLowerCase().includes(q)) ||
       localized.domains?.some(d => d.toLowerCase().includes(q)) ||
+      localized.speaking_style?.toLowerCase().includes(q) ||
+      localized.forbidden?.toLowerCase().includes(q) ||
       // 搜索动态翻译内容（用户自建网红）
       dynamicTranslation?.tagline?.toLowerCase().includes(q) ||
       dynamicTranslation?.personality?.some(p => p.toLowerCase().includes(q)) ||
-      dynamicTranslation?.domains?.some(d => d.toLowerCase().includes(q))
+      dynamicTranslation?.domains?.some(d => d.toLowerCase().includes(q)) ||
+      dynamicTranslation?.speaking_style?.toLowerCase().includes(q)
     const matchType = typeFilter === 'all' || i.type === typeFilter
     return matchSearch && matchType
   })
