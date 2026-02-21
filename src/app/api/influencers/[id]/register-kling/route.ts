@@ -47,6 +47,7 @@ export async function POST(
   // Call Kling Subject Library API
   const result = await createSubject({
     name: inf.slug,
+    description: inf.tagline || `AI influencer: ${inf.name}`,
     imageUrls: [imageUrl],
   })
 

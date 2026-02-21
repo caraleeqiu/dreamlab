@@ -55,39 +55,52 @@ async function klingFetch(path: string, options: RequestInit = {}) {
 
 // Build prompt for a single podcast clip (used in per-clip fallback)
 //
-// element_id (Kling 3.0 Subject Library) is preferred when available.
-// Falls back to frontal_image_url for influencers not yet registered in the Subject Library.
+// element_id (Kling 3.0 Subject Library) is used when available for better character consistency.
+// Without element_id, video generation still works but character may vary between clips.
 export function buildClipPrompt(
   clip: ScriptClip,
   influencer: Influencer,
   firstFrameUrl: string,
-  frontalImageUrl: string,
+  _frontalImageUrl: string, // kept for API compatibility, but not used since element_list requires element_id
 ) {
   const cameraTag = [clip.shot_type, clip.camera_movement].filter(Boolean).join(', ')
   const visualDirective = cameraTag
     ? `[${cameraTag}] ${clip.shot_description}`
     : clip.shot_description
 
+  // Only reference element in prompt if we have a registered element_id
+  const elementRef = influencer.kling_element_id ? '<<<element_1>>> ' : ''
   const prompt = [
-    `<<<element_1>>> ${visualDirective}`,
+    `${elementRef}${visualDirective}`,
     `Speak naturally: "${clip.dialogue}"`,
     `Voice style: ${influencer.voice_prompt}`,
   ].join('. ')
 
-  const elementEntry = influencer.kling_element_id
-    ? { element_id: influencer.kling_element_id }
-    : { frontal_image_url: frontalImageUrl }
-
-  return {
+  const result: {
+    model_name: string
+    prompt: string
+    image: string
+    duration: string
+    aspect_ratio: string
+    mode: 'pro'
+    sound: string
+    element_list?: Array<{ element_id: string }>
+  } = {
     model_name: 'kling-v3',
     prompt,
     image: firstFrameUrl,
     duration: String(clip.duration),
     aspect_ratio: '9:16',
     mode: 'pro' as const,
-    element_list: [elementEntry],
     sound: 'on',
   }
+
+  // Only include element_list if we have a valid element_id
+  if (influencer.kling_element_id) {
+    result.element_list = [{ element_id: influencer.kling_element_id }]
+  }
+
+  return result
 }
 
 export async function submitImage2Video(payload: ReturnType<typeof buildClipPrompt> & { callback_url?: string }) {
@@ -264,11 +277,13 @@ export async function submitLipSync(videoUrl: string, audioUrl: string, callback
 // videoUrl:  optional short reference video (3–10 s)
 export async function createSubject(params: {
   name: string
+  description?: string
   imageUrls: string[]
   videoUrl?: string
 }): Promise<{ element_id: string; voice_id?: string; error?: string } | null> {
   const body: Record<string, unknown> = {
     name: params.name,
+    element_description: params.description || `AI influencer character: ${params.name}`,
     image_list: params.imageUrls.map(url => ({ url })),
   }
   if (params.videoUrl) body.video_url = params.videoUrl
