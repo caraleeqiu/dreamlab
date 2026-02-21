@@ -176,9 +176,12 @@ export async function POST(req: NextRequest) {
 
     const frontalKey = inf?.frontal_image_url?.split('/dreamlab-assets/')[1]
     const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : inf?.frontal_image_url || ''
-    const elementEntry = inf?.kling_element_id
-      ? { element_id: inf.kling_element_id }
-      : { frontal_image_url: imageUrl }
+
+    // Only use element_list if influencer has a registered element_id
+    // Kling API does not support frontal_image_url as fallback in element_list
+    const elementList = inf?.kling_element_id
+      ? [{ element_id: inf.kling_element_id }]
+      : undefined
     const voiceList = inf?.kling_element_voice_id
       ? [{ voice_id: inf.kling_element_voice_id }]
       : undefined
@@ -217,7 +220,7 @@ export async function POST(req: NextRequest) {
       shotType: 'intelligence',
       totalDuration: Math.min(segmentDuration, 15),
       aspectRatio,
-      elementList: [elementEntry],
+      elementList,
       voiceList,
       callbackUrl,
     })
