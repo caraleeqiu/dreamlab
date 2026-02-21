@@ -704,16 +704,16 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
           <div className="space-y-2">
             <label className="text-sm text-zinc-400">{t(lang, UI.podcast.duration)}</label>
             <div className="flex flex-wrap gap-2">
-              {[60, 180, 300, 600].map(d => (
+              {[15, 30, 60, 180, 300].map(d => (
                 <button key={d} onClick={() => setDuration(d)}
                   className={`px-3.5 py-2 rounded-lg border text-sm transition-colors
                     ${duration === d ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400'}`}>
-                  {d < 60 ? `${d}${t(lang, UI.podcast.durationSec)}` : `${d / 60}${t(lang, UI.podcast.durationMin)}`}
+                  {d < 60 ? `${d}${lang === 'zh' ? '秒' : 's'}` : `${d / 60}${lang === 'zh' ? '分钟' : 'min'}`}
                 </button>
               ))}
             </div>
             <p className="text-xs text-zinc-600">
-              {lang === 'zh' ? `约 ${Math.floor(duration / 15)} 个切片` : `~${Math.floor(duration / 15)} clips`}
+              {lang === 'zh' ? `约 ${Math.max(1, Math.floor(duration / 15))} 个切片` : `~${Math.max(1, Math.floor(duration / 15))} clips`}
             </p>
           </div>
           <div className="space-y-2">
