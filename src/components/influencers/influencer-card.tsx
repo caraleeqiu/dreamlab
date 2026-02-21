@@ -23,10 +23,16 @@ const TYPE_LABEL_EN: Record<string, string> = {
   brand: 'Brand IP',
 }
 
-const CHAT_STYLE_LABEL: Record<string, string> = {
+const CHAT_STYLE_LABEL_ZH: Record<string, string> = {
   dominant: '主导型',
   supportive: '配合型',
   balanced: '平衡型',
+}
+
+const CHAT_STYLE_LABEL_EN: Record<string, string> = {
+  dominant: 'Dominant',
+  supportive: 'Supportive',
+  balanced: 'Balanced',
 }
 
 interface Props {
@@ -44,6 +50,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
   const lang = useLanguage()
   const isOwn = !influencer.is_builtin
   const TYPE_LABEL = lang === 'en' ? TYPE_LABEL_EN : TYPE_LABEL_ZH
+  const CHAT_STYLE_LABEL = lang === 'en' ? CHAT_STYLE_LABEL_EN : CHAT_STYLE_LABEL_ZH
 
   async function handleRegisterKling(e: React.MouseEvent) {
     e.stopPropagation()
