@@ -23,14 +23,16 @@ describe('CREDIT_COSTS', () => {
     expect(CREDIT_COSTS.anime).toBe(50)
   })
 
-  it('remix 是 job 类型中最低费用（5积分）', () => {
+  it('edu/script/link 是 job 类型中最低费用（15积分）', () => {
     const jobCosts = [
       CREDIT_COSTS.script, CREDIT_COSTS.podcast, CREDIT_COSTS.edu,
       CREDIT_COSTS.anime, CREDIT_COSTS.story, CREDIT_COSTS.remix, CREDIT_COSTS.link,
     ]
     const min = Math.min(...jobCosts)
-    expect(CREDIT_COSTS.remix).toBe(min)
-    expect(CREDIT_COSTS.remix).toBe(5)
+    expect(min).toBe(15)
+    expect(CREDIT_COSTS.edu).toBe(min)
+    expect(CREDIT_COSTS.script).toBe(min)
+    expect(CREDIT_COSTS.link).toBe(min)
   })
 })
 

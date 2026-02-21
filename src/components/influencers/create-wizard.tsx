@@ -44,6 +44,44 @@ function getRecommendedVoice(personality: string[]): typeof VOICE_OPTIONS[number
   return bestScore > 0 ? bestMatch : null
 }
 
+// 性格冲突对
+const PERSONALITY_CONFLICTS: [string, string][] = [
+  ['严肃', '幽默'],
+  ['严肃', '活泼'],
+  ['理性', '感性'],
+  ['冷幽默', '阳光'],
+  ['霸气', '萌系'],
+  ['零废话', '活泼'],
+  ['毒舌', '治愈'],
+]
+
+// 检测性格标签内部冲突
+function checkPersonalityConflict(personality: string[]): string | null {
+  for (const [a, b] of PERSONALITY_CONFLICTS) {
+    if (personality.includes(a) && personality.includes(b)) {
+      return `「${a}」和「${b}」可能有些矛盾，建议二选一`
+    }
+  }
+  return null
+}
+
+// 领域冲突对（选多个领域时可能稀释定位）
+const DOMAIN_CONFLICTS: [string, string][] = [
+  ['财经', '娱乐'],
+  ['科技', '情感'],
+  ['教育', '游戏'],
+]
+
+// 检测领域冲突
+function checkDomainConflict(domains: string[]): string | null {
+  for (const [a, b] of DOMAIN_CONFLICTS) {
+    if (domains.includes(a) && domains.includes(b)) {
+      return `「${a}」和「${b}」受众差异较大，可能影响账号定位`
+    }
+  }
+  return null
+}
+
 // 检测声线与性格是否匹配
 function checkVoiceMismatch(personality: string[], voiceValue: string): string | null {
   if (personality.length === 0) return null
@@ -249,6 +287,15 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
                 <span className="text-xs text-zinc-600 self-center">回车添加</span>
               </div>
             )}
+            {/* 性格冲突警告 */}
+            {(() => {
+              const conflict = checkPersonalityConflict(form.personality)
+              return conflict ? (
+                <div className="p-2 mt-2 rounded-lg bg-amber-900/20 border border-amber-700/50">
+                  <p className="text-xs text-amber-300">⚠️ {conflict}</p>
+                </div>
+              ) : null
+            })()}
           </div>
           <div className="space-y-1.5">
             <Label className="text-zinc-400">主领域 * <span className="text-zinc-600 font-normal">（最多3个）</span></Label>
@@ -280,6 +327,15 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
                 <span className="text-xs text-zinc-600 self-center">回车添加</span>
               </div>
             )}
+            {/* 领域冲突警告 */}
+            {(() => {
+              const conflict = checkDomainConflict(form.domains)
+              return conflict ? (
+                <div className="p-2 mt-2 rounded-lg bg-amber-900/20 border border-amber-700/50">
+                  <p className="text-xs text-amber-300">⚠️ {conflict}</p>
+                </div>
+              ) : null
+            })()}
           </div>
           <div className="space-y-1.5">
             <Label className="text-zinc-400">口头禅 <span className="text-zinc-600 font-normal">（最多3个，选填）</span></Label>
