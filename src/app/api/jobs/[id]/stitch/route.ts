@@ -289,9 +289,10 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
 
   // Fast path: single clip, no PiP
   if (clips.length === 1 && !isPaper) {
+    const singleClipUrl = clips[0].lipsync_url || clips[0].video_url
     await service.from('jobs').update({
       status: 'done',
-      final_video_url: clips[0].lipsync_url,
+      final_video_url: singleClipUrl,
       updated_at: new Date().toISOString(),
     }).eq('id', jobId)
     return
@@ -302,7 +303,9 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
     fs.mkdirSync(tmpDir, { recursive: true })
 
     for (const clip of clips) {
-      const res = await fetch(clip.lipsync_url)
+      const clipUrl = clip.lipsync_url || clip.video_url
+      if (!clipUrl) throw new Error(`No video URL for clip ${clip.clip_index}`)
+      const res = await fetch(clipUrl)
       if (!res.ok) throw new Error(`Failed to download clip ${clip.clip_index}: ${res.status}`)
       fs.writeFileSync(path.join(tmpDir, `clip_${clip.clip_index}.mp4`), Buffer.from(await res.arrayBuffer()))
     }
@@ -399,9 +402,10 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
 
   } catch (err) {
     logger.error('stitch failed, falling back to first clip', { jobId, err: String(err) })
+    const fallbackUrl = clips[0].lipsync_url || clips[0].video_url
     await service.from('jobs').update({
       status: 'done',
-      final_video_url: clips[0].lipsync_url,
+      final_video_url: fallbackUrl,
       updated_at: new Date().toISOString(),
     }).eq('id', jobId)
   } finally {
