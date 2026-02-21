@@ -182,14 +182,16 @@ wizard → POST /api/studio/[type]
 
 ### Round 26 — Influencer Creation Enhancements (2026-02)
 
-- **Personality conflict detection**: Create wizard warns when selecting conflicting personality traits (严肃 vs 幽默, 理性 vs 感性, 霸气 vs 萌系, etc.). Amber warning panel guides users to pick coherent traits.
-- **Domain conflict detection**: Warns when selecting domains with different target audiences (财经 vs 娱乐, 科技 vs 情感, 教育 vs 游戏).
+- **Personality conflict detection**: Create wizard warns when selecting conflicting personality traits (严肃 vs 幽默, 理性 vs 感性, 霸气 vs 萌系, etc.). Amber warning panel guides users to pick coherent traits. Works in both Chinese and English modes.
+- **Domain conflict detection**: Warns when selecting domains with different target audiences (财经 vs 娱乐, 科技 vs 情感, 教育 vs 游戏). Bilingual support with localized warning messages.
+- **Full i18n for create wizard**: Complete bilingual support for influencer creation flow. `i18n` object with `zh`/`en` translations for all UI strings — steps, types, personality traits, domains, voices, labels, placeholders, and conflict messages. Language auto-detected from user profile.
 - **Full-field search**: Influencer search now supports all fields — type (真人/动物/虚拟/品牌), ownership (官方/我的), personality tags, domains, speaking style, catchphrases, and forbidden topics. Bilingual support (Chinese + English labels).
 - **English TTS voices**: 16 built-in influencers now have English voice samples (`public/influencers/voices/`). Voice types matched to personality: Aoede (warm), Autonoe (energetic), Despina (cute), Achird (mature male), Charon (young male).
 - **Custom influencer TTS**: User-created influencers can preview voice via `/api/influencers/tts`. Auto-selects voice type based on personality traits. Returns base64 audio for immediate playback.
-- **AI prompt optimization**: Image generation step has "优化 Prompt" button. Calls `/api/influencers/optimize-prompt` which uses Gemini to enhance user's description into professional image generation prompt.
+- **AI prompt optimization**: Image generation step has "优化 Prompt / Optimize Prompt" button. Calls `/api/influencers/optimize-prompt` which uses Gemini to enhance user's description into professional image generation prompt.
 - **Default prompt generation**: Entering the image step auto-generates a starter prompt based on influencer type, name, and personality.
-- **Custom tag UX**: Custom personality/domain tags now display immediately after Enter, with X button to remove. Fixes invisible custom tag issue.
+- **Custom tag UX**: Custom personality/domain tags now display immediately after Enter, with X button to remove. Visual distinction from preset tags.
+- **Trending cache integration**: Content creation inspiration panel (`src/data/trending-cache.json`) updated via TrendRadar MCP. Categories: 娱乐/科技/生活/社会/体育 (zh), Tech/Culture/Sports/Business (en). Each entry includes title, angle, source, and date.
 
 ### Round 25 — BGM Mixing · Single-clip Regen · Kling Registration UI (2026-02)
 
