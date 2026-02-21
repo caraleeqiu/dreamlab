@@ -87,15 +87,29 @@ export default function InfluencersClient({ lang }: Props) {
   const myCount = influencers.filter(i => !i.is_builtin).length
   const isFirst = myCount === 0
 
+  // 类型标签映射（用于搜索）
+  const TYPE_LABELS: Record<string, string[]> = {
+    human: ['真人', 'human'],
+    animal: ['动物', 'animal'],
+    virtual: ['虚拟角色', 'virtual'],
+    brand: ['品牌ip', 'brand'],
+  }
+
   const filtered = influencers.filter(i => {
     const q = search.toLowerCase()
     // 获取本地化后的数据用于搜索
     const localized = localizeInfluencer(i, lang)
     const dynamicTranslation = translations[i.id] as { tagline?: string; personality?: string[]; domains?: string[] } | undefined
 
+    // 检查类型是否匹配搜索词
+    const typeLabels = TYPE_LABELS[i.type] || []
+    const matchTypeSearch = typeLabels.some(label => label.toLowerCase().includes(q))
+
     const matchSearch = !search ||
       // 搜索名字
       i.name.toLowerCase().includes(q) ||
+      // 搜索类型标签
+      matchTypeSearch ||
       // 搜索原始中文内容
       i.tagline?.toLowerCase().includes(q) ||
       i.personality?.some(p => p.toLowerCase().includes(q)) ||
