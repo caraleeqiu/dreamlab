@@ -263,7 +263,7 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
             consistency_anchor: c.consistency_anchor,
           })),
           styleAnchor,
-          aspectRatio,
+          aspectRatio: '1:1', // Use square for preview thumbnails
         }),
       })
       const data = await res.json()
@@ -310,7 +310,7 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
             consistency_anchor: clip.consistency_anchor,
           }],
           styleAnchor,
-          aspectRatio,
+          aspectRatio: '1:1', // Use square for preview thumbnails
         }),
       })
       const data = await res.json()
@@ -814,8 +814,8 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {storyboard.map((clip, i) => (
                   <div key={i} className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden group">
-                    {/* Preview image area */}
-                    <div className="relative aspect-[9/16] bg-zinc-800">
+                    {/* Preview image area - use 4:3 for card preview, actual video is 9:16 */}
+                    <div className="relative aspect-[4/5] bg-zinc-800">
                       {previewLoading[clip.index] ? (
                         <div className="absolute inset-0 flex items-center justify-center">
                           <Loader2 size={20} className="animate-spin text-violet-400" />
