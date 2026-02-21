@@ -7,7 +7,10 @@ import { CREDIT_COSTS, getCallbackUrl } from '@/lib/config'
 import { apiError } from '@/lib/api-response'
 import { deductCredits, createClipRecords, failClipAndCheckJob } from '@/lib/job-service'
 import { callGeminiJson } from '@/lib/gemini'
+import { createLogger } from '@/lib/logger'
 import type { Influencer } from '@/types'
+
+const logger = createLogger('remix')
 
 const REMIX_STYLE_LABELS: Record<string, string> = {
   commentary: '网红解说', reaction: '反应视频', duet: '合拍二创', remake: '同款翻拍',
@@ -117,6 +120,15 @@ Return JSON: [{"index":0,"speaker":"${influencer.slug}","dialogue":"line","shot_
   // Only attempt if influencer has a Subject Library element registered
   const referenceVideoUrl = inf.kling_element_id ? await mirrorVideoToR2(videoUrl, job.id) : null
 
+  logger.info('remix job started', {
+    jobId: job.id,
+    influencer: inf.slug,
+    hasElementId: !!inf.kling_element_id,
+    imageUrl: imageUrl.slice(0, 100),
+    referenceVideoMirrored: !!referenceVideoUrl,
+    clipCount: script.length,
+  })
+
   await Promise.allSettled(script.map(async (clip) => {
     let resp
 
@@ -178,10 +190,20 @@ Return JSON: [{"index":0,"speaker":"${influencer.slug}","dialogue":"line","shot_
 
     const result = classifyKlingResponse(resp)
     if (result.taskId) {
+      logger.info('clip submitted', { jobId: job.id, clipIndex: clip.index, taskId: result.taskId })
       await service.from('clips')
         .update({ status: 'submitted', kling_task_id: result.taskId, prompt: clip.shot_description })
         .eq('job_id', job.id).eq('clip_index', clip.index)
     } else {
+      logger.error('clip submission failed', {
+        jobId: job.id,
+        clipIndex: clip.index,
+        error: result.error,
+        influencerId: inf.id,
+        hasElementId: !!inf.kling_element_id,
+        imageUrl: imageUrl.slice(0, 100),
+        klingResponse: JSON.stringify(resp).slice(0, 500),
+      })
       await failClipAndCheckJob(service, job.id, clip.index, result.error ?? 'Submit failed')
     }
   }))
