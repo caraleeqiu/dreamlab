@@ -70,7 +70,7 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
     }
   }
 
-  function handlePlay(e: React.MouseEvent) {
+  async function handlePlay(e: React.MouseEvent) {
     e.stopPropagation()
 
     // 如果正在播放，停止
@@ -97,9 +97,34 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
         .then(() => setPlaying(true))
         .catch(() => setPlaying(false))
     } else {
-      // 用户自建网红暂无音频，显示提示动画
+      // 用户自建网红：调用 TTS API 生成语音
       setPlaying(true)
-      setTimeout(() => setPlaying(false), 1500)
+      try {
+        const res = await fetch('/api/influencers/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: influencer.name,
+            personality: influencer.personality || [],
+          })
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          if (!audioRef.current) {
+            audioRef.current = new Audio(data.audio)
+            audioRef.current.onended = () => setPlaying(false)
+            audioRef.current.onerror = () => setPlaying(false)
+          } else {
+            audioRef.current.src = data.audio
+          }
+          await audioRef.current.play()
+        } else {
+          setPlaying(false)
+        }
+      } catch {
+        setPlaying(false)
+      }
     }
   }
 
