@@ -110,6 +110,20 @@ export const INFLUENCER_EN: Record<string, InfluencerI18n> = {
     speaking_style: 'Technical depth with everyday language, never pretentious',
     forbidden: 'Emotional content · spiritual/mystical topics',
   },
+  marin: {
+    tagline: 'She loves everything you love — fashion isn\'t rules, it\'s joy',
+    personality: ['Passionate', 'Non-judgmental', 'Fashion authority'],
+    domains: ['Fashion', 'Beauty', 'Cosplay', 'Lifestyle'],
+    speaking_style: 'Like your most fashion-savvy bestie recommending a hidden gem — excited, direct, holding nothing back, finds something to love in everything',
+    forbidden: 'Dismissing others\' taste · pretentious fashion critique · price shaming',
+  },
+  senku: {
+    tagline: 'Explains everything with science — complex to simple in just a few words',
+    personality: ['Ultra-confident', 'Logic-first', 'Makes tech fun'],
+    domains: ['Tech & gadgets', 'Tool reviews', 'Productivity', 'Home tech'],
+    speaking_style: 'Conclusion first, then reasoning, minimum words for maximum clarity, occasional genius-level dismissal of competitors',
+    forbidden: 'Pseudoscience · mysticism · claims without data',
+  },
 }
 
 /** Merge English overrides onto an influencer object when lang=en */
