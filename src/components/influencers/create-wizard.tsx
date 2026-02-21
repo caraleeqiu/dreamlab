@@ -131,9 +131,11 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
   const [loading, setLoading] = useState(false)
   const [generatingImg, setGeneratingImg] = useState(false)
   const [generatingTts, setGeneratingTts] = useState(false)
+  const [optimizingPrompt, setOptimizingPrompt] = useState(false)
   const [imageUrl, setImageUrl] = useState(editInfluencer?.frontal_image_url || '')
   const [ttsUrl, setTtsUrl] = useState('')
   const [imagePrompt, setImagePrompt] = useState('')
+  const [promptOptimized, setPromptOptimized] = useState(false)
   const [imageError, setImageError] = useState('')
 
   const [form, setForm] = useState({
@@ -162,6 +164,35 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
       if (defaultPrompt) setImagePrompt(defaultPrompt)
     }
   }, [step, form.type, form.name, form.personality, imagePrompt, imageUrl])
+
+  async function optimizePrompt() {
+    if (!imagePrompt) return
+    setOptimizingPrompt(true)
+    setImageError('')
+    try {
+      const res = await fetch('/api/influencers/optimize-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          type: form.type,
+          name: form.name,
+          personality: form.personality,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.optimizedPrompt) {
+        setImagePrompt(data.optimizedPrompt)
+        setPromptOptimized(true)
+      } else {
+        setImageError(data.error || '优化失败，请重试')
+      }
+    } catch {
+      setImageError('网络错误，请重试')
+    } finally {
+      setOptimizingPrompt(false)
+    }
+  }
 
   async function generateImage() {
     if (!imagePrompt) return
@@ -439,15 +470,24 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
           {/* AI 生成 */}
           <div className="space-y-2">
             <Label className="text-zinc-400">方式二：AI 生成</Label>
-            <Textarea value={imagePrompt} onChange={e => setImagePrompt(e.target.value)}
+            <Textarea value={imagePrompt} onChange={e => { setImagePrompt(e.target.value); setPromptOptimized(false) }}
               placeholder={form.type === 'human'
                 ? "例：28岁东亚女性，黑色长直发，淡妆，自信微笑，穿米色毛衣，半身照，室内自然光从左侧照入"
                 : "例：A sleek black cat with gold collar, sitting upright, studio lighting, 9:16"}
-              className="bg-zinc-800 border-zinc-700 text-white resize-none" rows={3} />
-            <Button onClick={generateImage} disabled={!imagePrompt || generatingImg}
-              className="bg-violet-600 hover:bg-violet-700 text-white">
-              {generatingImg ? <><Loader2 size={14} className="animate-spin mr-1.5" />生成中...</> : `AI 生成${isFirst ? '（免费）' : '（3积分）'}`}
-            </Button>
+              className="bg-zinc-800 border-zinc-700 text-white resize-none" rows={4} />
+            {promptOptimized && (
+              <p className="text-xs text-green-400">✓ Prompt 已优化，可直接生成或继续编辑</p>
+            )}
+            <div className="flex gap-2">
+              <Button onClick={optimizePrompt} disabled={!imagePrompt || optimizingPrompt || generatingImg}
+                variant="outline" className="border-zinc-600 text-zinc-300 hover:text-white">
+                {optimizingPrompt ? <><Loader2 size={14} className="animate-spin mr-1.5" />优化中...</> : '优化 Prompt'}
+              </Button>
+              <Button onClick={generateImage} disabled={!imagePrompt || generatingImg || optimizingPrompt}
+                className="bg-violet-600 hover:bg-violet-700 text-white flex-1">
+                {generatingImg ? <><Loader2 size={14} className="animate-spin mr-1.5" />生成中...</> : `生成图片${isFirst ? '（免费）' : '（3积分）'}`}
+              </Button>
+            </div>
             {imageError && (
               <p className="text-xs text-red-400">{imageError}</p>
             )}
