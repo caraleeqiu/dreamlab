@@ -30,7 +30,7 @@ export default function PodcastClient({ lang, credits, influencers, recentJobs, 
     {
       id: 'trending',
       icon: <Flame size={22} className="text-orange-400" />,
-      title: lang === 'zh' ? '🔥 热点话题' : '🔥 Trending Topics',
+      title: lang === 'zh' ? '🔥 热点直出' : '🔥 Trending Topics',
       badge: lang === 'zh' ? '最热门' : 'Popular',
       desc: lang === 'zh'
         ? '从今日热榜选题，AI 自动提炼要点生成播客'
@@ -114,7 +114,7 @@ export default function PodcastClient({ lang, credits, influencers, recentJobs, 
       <p className="text-xs text-zinc-600 uppercase tracking-widest mb-3">
         {lang === 'zh' ? '选择创作方式' : 'Choose creation mode'}
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
         {MODES.map(m => (
           <button
             key={m.id}

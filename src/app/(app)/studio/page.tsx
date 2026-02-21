@@ -4,7 +4,7 @@ import { t, UI } from '@/lib/i18n'
 import type { Language } from '@/types'
 
 const REMIX_LINES = [
-  { href: '/studio/remix', key: 'remix' as const, emoji: '✂️', creditClass: 'text-violet-400', comingSoon: true },
+  { href: '/studio/remix', key: 'remix' as const, emoji: '✂️', creditClass: 'text-violet-400' },
 ]
 
 const ORIGINAL_LINES = [
