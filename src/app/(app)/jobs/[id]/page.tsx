@@ -36,6 +36,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [regenPrompt, setRegenPrompt] = useState('')
   const [regenSubmitting, setRegenSubmitting] = useState(false)
   const [regenError, setRegenError] = useState('')
+  const [regenSuccess, setRegenSuccess] = useState<number | null>(null) // new job id
 
   async function generatePublishKit() {
     if (!job) return
@@ -63,6 +64,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     if (!regenPrompt.trim() || !job) return
     setRegenSubmitting(true)
     setRegenError('')
+    setRegenSuccess(null)
     // Estimate time range from clip index × 15s (approximate)
     const startS = clipIndex * 15
     const endS = startS + 15
@@ -80,10 +82,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || (lang === 'zh' ? '提交失败' : 'Submit failed'))
-      setRegenClipId(null)
+      if (!data.jobId) throw new Error(lang === 'zh' ? '服务器返回异常' : 'Invalid server response')
+      // Show success state with link to new job
+      setRegenSuccess(data.jobId)
       setRegenPrompt('')
-      router.push(`/jobs/${data.jobId}`)
     } catch (err: unknown) {
+      console.error('Regen failed:', err)
       setRegenError(err instanceof Error ? err.message : (lang === 'zh' ? '提交失败' : 'Submit failed'))
     } finally {
       setRegenSubmitting(false)
@@ -367,35 +371,60 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     {/* Inline regen panel */}
                     {regenClipId === clip.id && (
                       <div className="mt-1 p-3 rounded-lg bg-zinc-800/80 border border-cyan-900/50 space-y-2">
-                        <p className="text-xs text-cyan-400">
-                          {lang === 'zh' ? '用 AI 重新生成这一幕（将替换原视频片段）' : 'Regenerate this clip with AI (replaces the original segment)'}
-                        </p>
-                        <textarea
-                          rows={2}
-                          placeholder={lang === 'zh'
-                            ? '描述新画面，例如：换成室外咖啡馆场景，阳光从左侧照进来...'
-                            : 'Describe the new scene, e.g. outdoor café, sunlight from the left...'}
-                          value={regenPrompt}
-                          onChange={e => setRegenPrompt(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-2.5 py-1.5 text-white placeholder:text-zinc-600 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                        />
-                        {regenError && <p className="text-xs text-red-400">{regenError}</p>}
-                        <div className="flex gap-2 justify-end">
-                          <button onClick={() => setRegenClipId(null)}
-                            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                            {lang === 'zh' ? '取消' : 'Cancel'}
-                          </button>
-                          <Button
-                            size="sm"
-                            onClick={() => submitClipRegen(clip.id, clip.clip_index)}
-                            disabled={regenSubmitting || !regenPrompt.trim()}
-                            className="h-6 px-3 text-xs bg-cyan-600 hover:bg-cyan-700 text-white"
-                          >
-                            {regenSubmitting
-                              ? <Loader2 size={11} className="animate-spin" />
-                              : (lang === 'zh' ? '提交重生成' : 'Regenerate')}
-                          </Button>
-                        </div>
+                        {regenSuccess ? (
+                          <>
+                            <p className="text-xs text-green-400">
+                              {lang === 'zh' ? '✓ 已提交重生成任务' : '✓ Regeneration submitted'}
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => router.push(`/jobs/${regenSuccess}`)}
+                                className="h-6 px-3 text-xs bg-cyan-600 hover:bg-cyan-700 text-white"
+                              >
+                                {lang === 'zh' ? '查看新任务' : 'View new job'}
+                              </Button>
+                              <button
+                                onClick={() => { setRegenClipId(null); setRegenSuccess(null) }}
+                                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                              >
+                                {lang === 'zh' ? '关闭' : 'Close'}
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-cyan-400">
+                              {lang === 'zh' ? '用 AI 重新生成这一幕（将替换原视频片段）' : 'Regenerate this clip with AI (replaces the original segment)'}
+                            </p>
+                            <textarea
+                              rows={2}
+                              placeholder={lang === 'zh'
+                                ? '描述新画面，例如：换成室外咖啡馆场景，阳光从左侧照进来...'
+                                : 'Describe the new scene, e.g. outdoor café, sunlight from the left...'}
+                              value={regenPrompt}
+                              onChange={e => setRegenPrompt(e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-2.5 py-1.5 text-white placeholder:text-zinc-600 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                            />
+                            {regenError && <p className="text-xs text-red-400">{regenError}</p>}
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => setRegenClipId(null)}
+                                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                                {lang === 'zh' ? '取消' : 'Cancel'}
+                              </button>
+                              <Button
+                                size="sm"
+                                onClick={() => submitClipRegen(clip.id, clip.clip_index)}
+                                disabled={regenSubmitting || !regenPrompt.trim()}
+                                className="h-6 px-3 text-xs bg-cyan-600 hover:bg-cyan-700 text-white"
+                              >
+                                {regenSubmitting
+                                  ? <Loader2 size={11} className="animate-spin" />
+                                  : (lang === 'zh' ? '提交重生成' : 'Regenerate')}
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 
