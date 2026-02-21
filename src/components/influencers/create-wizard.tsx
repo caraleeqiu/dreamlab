@@ -267,8 +267,16 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
                   {tag}
                 </button>
               ))}
+              {/* 显示自定义标签（带删除按钮） */}
+              {form.personality.filter(tag => !PERSONALITY_OPTIONS.includes(tag)).map(tag => (
+                <button key={tag} onClick={() => setForm(f => ({ ...f, personality: f.personality.filter(t => t !== tag) }))}
+                  className="px-2.5 py-1 rounded-full text-xs bg-violet-600 text-white flex items-center gap-1 group">
+                  {tag}
+                  <X size={12} className="opacity-60 group-hover:opacity-100" />
+                </button>
+              ))}
             </div>
-            {/* 自定义性格标签 */}
+            {/* 自定义性格标签输入 */}
             {form.personality.length < 3 && (
               <div className="flex gap-2 mt-2">
                 <Input
@@ -307,8 +315,16 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
                   {tag}
                 </button>
               ))}
+              {/* 显示自定义领域（带删除按钮） */}
+              {form.domains.filter(tag => !DOMAIN_OPTIONS.includes(tag)).map(tag => (
+                <button key={tag} onClick={() => setForm(f => ({ ...f, domains: f.domains.filter(t => t !== tag) }))}
+                  className="px-2.5 py-1 rounded-full text-xs bg-violet-600 text-white flex items-center gap-1 group">
+                  {tag}
+                  <X size={12} className="opacity-60 group-hover:opacity-100" />
+                </button>
+              ))}
             </div>
-            {/* 自定义领域标签 */}
+            {/* 自定义领域输入 */}
             {form.domains.length < 3 && (
               <div className="flex gap-2 mt-2">
                 <Input
