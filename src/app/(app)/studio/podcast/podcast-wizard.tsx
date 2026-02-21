@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { ChevronLeft, Loader2, Check, Upload, FileText, X } from 'lucide-react'
+import { ChevronLeft, Loader2, Check, Upload, FileText, X, RefreshCw, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
@@ -61,6 +61,9 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
 
   // Step 4
   const [storyboard, setStoryboard] = useState<ScriptClip[]>([])
+  const [previewImages, setPreviewImages] = useState<Record<number, string | null>>({})
+  const [previewLoading, setPreviewLoading] = useState<Record<number, boolean>>({})
+  const [previewError, setPreviewError] = useState<string>('')
 
   const platforms = PLATFORMS[lang]
   const categories = TOPIC_CATEGORIES[lang]
@@ -203,6 +206,7 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
 
   async function generateStoryboard() {
     setLoading(true)
+    setPreviewImages({}) // Clear old previews
     const infToSend = selectedInfluencers.length > 0
       ? selectedInfluencers
       : format === 'dialogue' ? influencers.slice(0, 2) : [influencers[0]]
@@ -219,12 +223,101 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
       }),
     })
     const data = await res.json()
-    setStoryboard(Array.isArray(data.script) ? data.script : script)
+    const newStoryboard = Array.isArray(data.script) ? data.script : script
+    setStoryboard(newStoryboard)
     setLoading(false)
+    // Generate preview images in background
+    generateAllPreviews(newStoryboard)
   }
 
   function updateStoryboardDialogue(index: number, value: string) {
     setStoryboard(prev => prev.map((clip, i) => i === index ? { ...clip, dialogue: value } : clip))
+  }
+
+  function updateStoryboardShotDesc(index: number, value: string) {
+    setStoryboard(prev => prev.map((clip, i) => i === index ? { ...clip, shot_description: value } : clip))
+  }
+
+  // Generate all preview images
+  async function generateAllPreviews(clips: ScriptClip[]) {
+    if (!clips.length) return
+    setPreviewError('')
+    // Mark all as loading
+    setPreviewLoading(Object.fromEntries(clips.map(c => [c.index, true])))
+
+    const infToSend = selectedInfluencers.length > 0
+      ? selectedInfluencers
+      : format === 'dialogue' ? influencers.slice(0, 2) : [influencers[0]]
+    const styleAnchor = infToSend[0]
+      ? `${infToSend[0].name}, ${infToSend[0].tagline}, professional podcast host, warm studio lighting`
+      : 'professional podcast host, warm studio lighting'
+
+    try {
+      const res = await fetch('/api/studio/storyboard/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clips: clips.map(c => ({
+            index: c.index,
+            shot_description: c.shot_description,
+            consistency_anchor: c.consistency_anchor,
+          })),
+          styleAnchor,
+          aspectRatio,
+        }),
+      })
+      const data = await res.json()
+      if (data.previews) {
+        const newPreviews: Record<number, string | null> = {}
+        for (const p of data.previews) {
+          newPreviews[p.index] = p.url
+        }
+        setPreviewImages(prev => ({ ...prev, ...newPreviews }))
+      }
+    } catch (err) {
+      setPreviewError(lang === 'zh' ? '预览图生成失败' : 'Preview generation failed')
+    } finally {
+      setPreviewLoading({})
+    }
+  }
+
+  // Regenerate single preview image
+  async function regeneratePreview(clipIndex: number) {
+    const clip = storyboard.find(c => c.index === clipIndex)
+    if (!clip) return
+
+    setPreviewLoading(prev => ({ ...prev, [clipIndex]: true }))
+
+    const infToSend = selectedInfluencers.length > 0
+      ? selectedInfluencers
+      : format === 'dialogue' ? influencers.slice(0, 2) : [influencers[0]]
+    const styleAnchor = infToSend[0]
+      ? `${infToSend[0].name}, ${infToSend[0].tagline}, professional podcast host, warm studio lighting`
+      : 'professional podcast host, warm studio lighting'
+
+    try {
+      const res = await fetch('/api/studio/storyboard/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clips: [{
+            index: clip.index,
+            shot_description: clip.shot_description,
+            consistency_anchor: clip.consistency_anchor,
+          }],
+          styleAnchor,
+          aspectRatio,
+        }),
+      })
+      const data = await res.json()
+      if (data.previews?.[0]) {
+        setPreviewImages(prev => ({ ...prev, [clipIndex]: data.previews[0].url }))
+      }
+    } catch {
+      // silent fail for single regeneration
+    } finally {
+      setPreviewLoading(prev => ({ ...prev, [clipIndex]: false }))
+    }
   }
 
   async function submitJob() {
@@ -682,7 +775,7 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
 
       {/* ── Step 4: 分镜预览 ── */}
       {step === 4 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {loading ? (
             <div className="flex flex-col items-center py-12 gap-3 text-zinc-500">
               <Loader2 size={24} className="animate-spin text-violet-400" />
@@ -694,46 +787,89 @@ export default function PodcastWizard({ lang, credits, influencers, initialMode,
                 <p className="text-sm text-zinc-500">
                   {lang === 'zh' ? `${storyboard.length} 个镜头` : `${storyboard.length} shots`}
                 </p>
-                <span className="text-xs text-zinc-600">
-                  {lang === 'zh' ? '台词列可直接编辑' : 'Dialogue column is editable'}
-                </span>
+                <div className="flex items-center gap-2">
+                  {Object.values(previewLoading).some(Boolean) && (
+                    <span className="text-xs text-violet-400 flex items-center gap-1">
+                      <Loader2 size={12} className="animate-spin" />
+                      {lang === 'zh' ? '生成预览图...' : 'Generating previews...'}
+                    </span>
+                  )}
+                  <span className="text-xs text-zinc-600">
+                    {lang === 'zh' ? '点击镜头可编辑' : 'Click shot to edit'}
+                  </span>
+                </div>
               </div>
-              <div className="overflow-x-auto rounded-xl border border-zinc-800">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-zinc-800 bg-zinc-900">
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium w-8">#</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '说话人' : 'Speaker'}</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '景别' : 'Shot'}</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '运动' : 'Camera'}</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '台词' : 'Dialogue'}</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">BGM</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium">{lang === 'zh' ? '旁白' : 'VO'}</th>
-                      <th className="px-3 py-2 text-left text-zinc-500 font-medium w-8">{lang === 'zh' ? '时长' : 'Dur'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {storyboard.map((clip, i) => (
-                      <tr key={i} className={`border-b border-zinc-800/60 ${i % 2 === 0 ? 'bg-zinc-900' : 'bg-zinc-900/50'}`}>
-                        <td className="px-3 py-2 text-zinc-600">{clip.index + 1}</td>
-                        <td className="px-3 py-2 text-violet-400">{clip.speaker}</td>
-                        <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.shot_type || '—'}</span></td>
-                        <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">{clip.camera_movement || '—'}</span></td>
-                        <td className="px-3 py-2 max-w-48">
-                          <input
-                            type="text"
-                            value={clip.dialogue ?? ''}
-                            onChange={e => updateStoryboardDialogue(i, e.target.value)}
-                            className="w-full bg-transparent border-b border-zinc-700 focus:border-violet-500 text-white text-xs py-0.5 focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-zinc-400">{clip.bgm || '—'}</td>
-                        <td className="px-3 py-2 text-zinc-500 max-w-32"><span className="line-clamp-1">{clip.voiceover || '—'}</span></td>
-                        <td className="px-3 py-2 text-zinc-600">{clip.duration}s</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {previewError && (
+                <p className="text-xs text-red-400">{previewError}</p>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {storyboard.map((clip, i) => (
+                  <div key={i} className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden group">
+                    {/* Preview image area */}
+                    <div className="relative aspect-[9/16] bg-zinc-800">
+                      {previewLoading[clip.index] ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Loader2 size={20} className="animate-spin text-violet-400" />
+                        </div>
+                      ) : previewImages[clip.index] ? (
+                        <img
+                          src={previewImages[clip.index]!}
+                          alt={`Shot ${clip.index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600">
+                          <ImageIcon size={24} />
+                          <span className="text-xs mt-1">{lang === 'zh' ? '待生成' : 'Pending'}</span>
+                        </div>
+                      )}
+                      {/* Regenerate button overlay */}
+                      <button
+                        onClick={() => regeneratePreview(clip.index)}
+                        disabled={previewLoading[clip.index]}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white/70
+                                   hover:bg-black/70 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                        title={lang === 'zh' ? '重新生成预览图' : 'Regenerate preview'}
+                      >
+                        <RefreshCw size={14} className={previewLoading[clip.index] ? 'animate-spin' : ''} />
+                      </button>
+                      {/* Shot number badge */}
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/50 text-white text-xs">
+                        #{clip.index + 1}
+                      </div>
+                      {/* Duration badge */}
+                      <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/50 text-white text-xs">
+                        {clip.duration}s
+                      </div>
+                    </div>
+                    {/* Info section */}
+                    <div className="p-3 space-y-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-violet-400">{clip.speaker}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">{clip.shot_type || '—'}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">{clip.camera_movement || '—'}</span>
+                      </div>
+                      {/* Editable shot description */}
+                      <textarea
+                        value={clip.shot_description ?? ''}
+                        onChange={e => updateStoryboardShotDesc(i, e.target.value)}
+                        placeholder={lang === 'zh' ? '镜头描述...' : 'Shot description...'}
+                        rows={2}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5
+                                   text-white text-xs resize-none focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      />
+                      {/* Editable dialogue */}
+                      <input
+                        type="text"
+                        value={clip.dialogue ?? ''}
+                        onChange={e => updateStoryboardDialogue(i, e.target.value)}
+                        placeholder={lang === 'zh' ? '台词...' : 'Dialogue...'}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-2 py-1.5
+                                   text-white text-xs focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </>
           )}
