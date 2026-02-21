@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,7 @@ interface Props {
 export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) {
   const [playing, setPlaying] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const [registering, setRegistering] = useState(false)
   const [registered, setRegistered] = useState(!!influencer.kling_element_id)
   const [regError, setRegError] = useState('')
@@ -71,8 +72,35 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
 
   function handlePlay(e: React.MouseEvent) {
     e.stopPropagation()
-    setPlaying(true)
-    setTimeout(() => setPlaying(false), 3000)
+
+    // 如果正在播放，停止
+    if (playing && audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setPlaying(false)
+      return
+    }
+
+    // 内置网红使用本地音频文件
+    if (influencer.is_builtin && influencer.slug) {
+      const audioUrl = `/influencers/voices/${influencer.slug}_voice.wav`
+
+      if (!audioRef.current) {
+        audioRef.current = new Audio(audioUrl)
+        audioRef.current.onended = () => setPlaying(false)
+        audioRef.current.onerror = () => setPlaying(false)
+      } else {
+        audioRef.current.src = audioUrl
+      }
+
+      audioRef.current.play()
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false))
+    } else {
+      // 用户自建网红暂无音频，显示提示动画
+      setPlaying(true)
+      setTimeout(() => setPlaying(false), 1500)
+    }
   }
 
   function handleEdit(e: React.MouseEvent) {
