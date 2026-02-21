@@ -51,7 +51,9 @@ export async function POST(
   })
 
   if (!result?.element_id) {
-    return apiError('Kling registration failed — check Kling API key and image URL', 500)
+    const errMsg = result?.error || 'Unknown error'
+    console.error('[register-kling] Failed for', inf.slug, ':', errMsg, 'imageUrl:', imageUrl.slice(0, 100))
+    return apiError(`Kling registration failed: ${errMsg}`, 500)
   }
 
   // Save element_id + voice_id back to DB

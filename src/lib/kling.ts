@@ -266,7 +266,7 @@ export async function createSubject(params: {
   name: string
   imageUrls: string[]
   videoUrl?: string
-}): Promise<{ element_id: string; voice_id?: string } | null> {
+}): Promise<{ element_id: string; voice_id?: string; error?: string } | null> {
   const body: Record<string, unknown> = {
     name: params.name,
     image_list: params.imageUrls.map(url => ({ url })),
@@ -278,7 +278,10 @@ export async function createSubject(params: {
     body: JSON.stringify(body),
   })
 
-  if (resp?.code !== 0 || !resp?.data?.element_id) return null
+  if (resp?.code !== 0 || !resp?.data?.element_id) {
+    console.error('[Kling createSubject] Failed:', JSON.stringify(resp))
+    return { element_id: '', error: resp?.message || `code=${resp?.code}` }
+  }
   return {
     element_id: resp.data.element_id as string,
     voice_id: resp.data.voice_id as string | undefined,
