@@ -223,13 +223,18 @@ async function composePipClip(opts: {
 
 async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClient>>, jobId: number) {
   const { data: job } = await service.from('jobs').select('metadata, script, user_id, credit_cost').eq('id', jobId).single()
-  const { data: clips } = await service.from('clips').select('lipsync_url, video_url, clip_index').eq('job_id', jobId).order('clip_index')
+  const { data: allClips } = await service.from('clips').select('lipsync_url, video_url, clip_index, status').eq('job_id', jobId).order('clip_index')
+
+  // Filter to only successful clips (have video URL)
+  const clips = (allClips ?? []).filter(c => c.status === 'done' && (c.lipsync_url || c.video_url))
 
   if (!clips?.length) {
     await service.from('jobs').update({ status: 'failed', error_msg: 'No clips to stitch' }).eq('id', jobId)
     await refundCredits(service, job)
     return
   }
+
+  logger.info('stitching clips', { jobId, total: allClips?.length, successful: clips.length })
 
   // Splice mode: 3-part concat [before + generated_clip + after]
   const isSplice = job?.metadata?.splice_mode === true
@@ -330,16 +335,19 @@ async function stitchVideo(service: Awaited<ReturnType<typeof createServiceClien
         return composedPath
       }))
     } else {
+      // For non-paper jobs: add subtitles from script dialogue
+      // Use clip.clip_index to get the correct dialogue even when some clips are skipped
       processedPaths = await Promise.all(clips.map(async clip => {
         const dialogue = (scriptClips[clip.clip_index] ?? {}).dialogue ?? ''
-        if (!dialogue) return path.join(tmpDir, `clip_${clip.clip_index}.mp4`)
+        const subtitleFilter = dialogue.trim() ? buildDrawtext(dialogue) : null
+        if (!subtitleFilter) return path.join(tmpDir, `clip_${clip.clip_index}.mp4`)
         const outputPath = path.join(tmpDir, `sub_${clip.clip_index}.mp4`)
         await composePipClip({
           characterVideoPath: path.join(tmpDir, `clip_${clip.clip_index}.mp4`),
           diagramImagePath: null,
           outputPath,
           dialogue,
-          aspectRatio: '9:16',
+          aspectRatio: job?.metadata?.aspect_ratio || '9:16',
         })
         return outputPath
       }))

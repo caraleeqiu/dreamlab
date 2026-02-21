@@ -242,8 +242,11 @@ async function checkAndUpdateJobStatus(
   const allTerminal = clips.every(c => c.status === 'done' || c.status === 'failed')
   const anyFailed   = clips.some(c => c.status === 'failed')
 
-  if (allTerminal && anyFailed && !allDone) {
-    // All clips are terminal and at least one failed → job failed, refund credits
+  // Count successful clips
+  const doneCount = clips.filter(c => c.status === 'done').length
+
+  if (allTerminal && anyFailed && doneCount === 0) {
+    // All clips failed → job failed, refund credits
     const { data: job } = await service
       .from('jobs')
       .select('user_id, credit_cost')
@@ -268,7 +271,8 @@ async function checkAndUpdateJobStatus(
     return
   }
 
-  if (allDone) {
+  // Partial success: some clips done, some failed → still stitch what we have
+  if (allTerminal && doneCount > 0) {
     await service.from('jobs').update({ status: 'stitching' }).eq('id', jobId)
 
     // 触发独立的 stitch 路由（maxDuration=300）— fire-and-forget
