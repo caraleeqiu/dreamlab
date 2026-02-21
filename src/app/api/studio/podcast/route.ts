@@ -108,9 +108,10 @@ export async function POST(request: NextRequest) {
     const stylePrefix = `${inf.name} (${inf.tagline}). Voice: ${inf.voice_prompt}.`
 
     // Subject Library: element_id for character consistency; voice_id for fixed timbre
-    const elementEntry = inf.kling_element_id
-      ? { element_id: inf.kling_element_id }
-      : { frontal_image_url: imageUrl }
+    // Only include element_list if we have a valid element_id (Kling API doesn't support frontal_image_url fallback)
+    const elementList = inf.kling_element_id
+      ? [{ element_id: inf.kling_element_id }]
+      : undefined
     const voiceList = inf.kling_element_voice_id
       ? [{ voice_id: inf.kling_element_voice_id }]
       : undefined
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
           shotType: 'intelligence',
           totalDuration: groupDuration,
           aspectRatio: aspect_ratio || '9:16',
-          elementList: [elementEntry],
+          elementList,
           voiceList,
           callbackUrl,
         })
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
           shotType: 'customize',
           totalDuration: groupDuration,
           aspectRatio: aspect_ratio || '9:16',
-          elementList: [elementEntry],
+          elementList,
           voiceList,
           callbackUrl,
         })

@@ -61,10 +61,10 @@ export async function POST(req: NextRequest) {
     return apiError(jobErr.message, 500)
   }
 
-  // Subject Library: element_id for character consistency; voice_id for fixed timbre
-  const elementEntry = influencer.kling_element_id
-    ? { element_id: influencer.kling_element_id }
-    : { frontal_image_url: imageUrl }
+  // Subject Library: only use element_id if registered (Kling API doesn't support frontal_image_url fallback)
+  const elementList = influencer.kling_element_id
+    ? [{ element_id: influencer.kling_element_id }]
+    : undefined
   const voiceList = influencer.kling_element_voice_id
     ? [{ voice_id: influencer.kling_element_voice_id }]
     : undefined
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
         shotType: 'intelligence',
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
-        elementList: [elementEntry],
+        elementList,
         voiceList,
         callbackUrl,
       })
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
         shotType: 'customize',
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
-        elementList: [elementEntry],
+        elementList,
         voiceList,
         callbackUrl,
       })

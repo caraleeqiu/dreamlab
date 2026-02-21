@@ -92,10 +92,10 @@ export async function POST(req: NextRequest) {
   }))
   await service.from('clips').insert(clipInserts)
 
-  // Subject Library: element_id for character consistency; voice_id for fixed timbre
-  const elementEntry = primaryInf.kling_element_id
-    ? { element_id: primaryInf.kling_element_id }
-    : { frontal_image_url: imageUrl }
+  // Subject Library: only use element_id if registered (Kling API doesn't support frontal_image_url fallback)
+  const elementList = primaryInf.kling_element_id
+    ? [{ element_id: primaryInf.kling_element_id }]
+    : undefined
   const voiceList = primaryInf.kling_element_voice_id
     ? [{ voice_id: primaryInf.kling_element_voice_id }]
     : undefined
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
         callbackUrl,
-        elementList: [elementEntry],
+        elementList,
         voiceList,
       }
     } else {
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
         totalDuration: groupDuration,
         aspectRatio: aspectRatio || '9:16',
         callbackUrl,
-        elementList: [elementEntry],
+        elementList,
         voiceList,
       }
     }

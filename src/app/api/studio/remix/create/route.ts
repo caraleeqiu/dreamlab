@@ -62,10 +62,10 @@ export async function POST(req: NextRequest) {
   const frontalKey = inf.frontal_image_url!.split('/dreamlab-assets/')[1]
   const imageUrl = frontalKey ? await getPresignedUrl(frontalKey) : inf.frontal_image_url!
 
-  // Subject Library anchors
-  const elementEntry = inf.kling_element_id
-    ? { element_id: inf.kling_element_id }
-    : { frontal_image_url: imageUrl }
+  // Subject Library: only use element_id if registered (Kling API doesn't support frontal_image_url fallback)
+  const elementList = inf.kling_element_id
+    ? [{ element_id: inf.kling_element_id }]
+    : undefined
   const voiceList = inf.kling_element_voice_id
     ? [{ voice_id: inf.kling_element_voice_id }]
     : undefined
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       totalDuration: groupDuration,
       aspectRatio: aspectRatio || '9:16',
       callbackUrl,
-      elementList: [elementEntry],
+      elementList,
       voiceList,
       referenceVideoUrl: mirroredRefUrl,  // camera style learning from original
     }
