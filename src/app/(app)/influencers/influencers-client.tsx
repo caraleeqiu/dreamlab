@@ -89,11 +89,25 @@ export default function InfluencersClient({ lang }: Props) {
 
   const filtered = influencers.filter(i => {
     const q = search.toLowerCase()
+    // 获取本地化后的数据用于搜索
+    const localized = localizeInfluencer(i, lang)
+    const dynamicTranslation = translations[i.id] as { tagline?: string; personality?: string[]; domains?: string[] } | undefined
+
     const matchSearch = !search ||
+      // 搜索名字
       i.name.toLowerCase().includes(q) ||
+      // 搜索原始中文内容
       i.tagline?.toLowerCase().includes(q) ||
       i.personality?.some(p => p.toLowerCase().includes(q)) ||
-      i.domains?.some(d => d.toLowerCase().includes(q))
+      i.domains?.some(d => d.toLowerCase().includes(q)) ||
+      // 搜索本地化后的英文内容（内置网红）
+      localized.tagline?.toLowerCase().includes(q) ||
+      localized.personality?.some(p => p.toLowerCase().includes(q)) ||
+      localized.domains?.some(d => d.toLowerCase().includes(q)) ||
+      // 搜索动态翻译内容（用户自建网红）
+      dynamicTranslation?.tagline?.toLowerCase().includes(q) ||
+      dynamicTranslation?.personality?.some(p => p.toLowerCase().includes(q)) ||
+      dynamicTranslation?.domains?.some(d => d.toLowerCase().includes(q))
     const matchType = typeFilter === 'all' || i.type === typeFilter
     return matchSearch && matchType
   })
