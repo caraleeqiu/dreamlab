@@ -332,44 +332,48 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {/* 完成：视频预览 */}
       {isDone && (
         <div className="space-y-6">
-          {job.final_video_url && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-medium text-zinc-400">
-                {lang === 'zh' ? '生成结果' : 'Result'}
-              </h2>
-              {job.script && Array.isArray(job.script) && job.script.length > 0 ? (
-                <VideoPlayerWithSubtitles
-                  videoSrc={job.final_video_url}
-                  script={job.script}
-                  aspectRatio={job.aspect_ratio || '9:16'}
-                  className="w-full max-w-sm mx-auto"
-                />
-              ) : (
-                <video
-                  src={job.final_video_url}
-                  controls
-                  className="w-full max-w-sm mx-auto rounded-xl border border-zinc-700"
-                  style={{ aspectRatio: job.aspect_ratio?.replace(':', '/') }}
-                />
-              )}
-              <div className="flex justify-center">
-                <a href={job.final_video_url} download
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors">
-                  <Download size={14} />
-                  {t(lang, UI.jobs.downloadAll)}
-                </a>
+          {/* Main video: final_video_url or first clip if no final */}
+          {(() => {
+            const mainVideoUrl = job.final_video_url || job.clips?.find(c => c.lipsync_url || c.video_url)?.lipsync_url || job.clips?.find(c => c.video_url)?.video_url
+            if (!mainVideoUrl) return null
+            return (
+              <div className="space-y-3">
+                <h2 className="text-sm font-medium text-zinc-400">
+                  {lang === 'zh' ? '生成结果' : 'Result'}
+                </h2>
+                {job.script && Array.isArray(job.script) && job.script.length > 0 ? (
+                  <VideoPlayerWithSubtitles
+                    videoSrc={mainVideoUrl}
+                    script={job.script}
+                    aspectRatio={job.aspect_ratio || '9:16'}
+                    className="w-full max-w-sm mx-auto"
+                  />
+                ) : (
+                  <video
+                    src={mainVideoUrl}
+                    controls
+                    className="w-full max-w-sm mx-auto rounded-xl border border-zinc-700"
+                    style={{ aspectRatio: job.aspect_ratio?.replace(':', '/') }}
+                  />
+                )}
+                <div className="flex justify-center">
+                  <a href={mainVideoUrl} download
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium transition-colors">
+                    <Download size={14} />
+                    {t(lang, UI.jobs.downloadAll)}
+                  </a>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
-          {job.clips && job.clips.filter(c => c.lipsync_url || c.video_url).length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-medium text-zinc-400">
-                {job.clips.filter(c => c.lipsync_url || c.video_url).length > 1
-                  ? (lang === 'zh' ? '各片段独立下载' : 'Download individual clips')
-                  : ''}
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
+          {/* Only show individual clips if: no final video OR multiple clips */}
+          {job.clips && job.clips.filter(c => c.lipsync_url || c.video_url).length > 1 && (
+            <details className="group">
+              <summary className="text-sm font-medium text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">
+                {lang === 'zh' ? '▶ 展开各片段独立下载' : '▶ Show individual clips'}
+              </summary>
+              <div className="grid grid-cols-2 gap-3 mt-3">
                 {job.clips.filter(c => c.lipsync_url || c.video_url).map(clip => (
                   <div key={clip.id} className="space-y-1.5">
                     <video
@@ -529,7 +533,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
           )}
         </div>
       )}
