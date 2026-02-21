@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -8,9 +8,12 @@ import InfluencerCard from '@/components/influencers/influencer-card'
 import CreateWizard from '@/components/influencers/create-wizard'
 import type { Influencer, Language } from '@/types'
 import { t, UI } from '@/lib/i18n'
-import { localizeInfluencer } from '@/lib/influencers-i18n'
+import { localizeInfluencer, getTranslationCacheKey } from '@/lib/influencers-i18n'
 
 interface Props { lang: Language }
+
+// 翻译缓存
+const translationCache = new Map<string, Record<string, unknown>>()
 
 export default function InfluencersClient({ lang }: Props) {
   const [influencers, setInfluencers] = useState<Influencer[]>([])
@@ -19,10 +22,53 @@ export default function InfluencersClient({ lang }: Props) {
   const [typeFilter, setTypeFilter] = useState('all')
   const [showCreate, setShowCreate] = useState(false)
   const [editTarget, setEditTarget] = useState<Influencer | null>(null)
+  const [translations, setTranslations] = useState<Record<number, Record<string, unknown>>>({})
+
+  // 翻译用户自建网红
+  const translateInfluencer = useCallback(async (inf: Influencer) => {
+    if (inf.is_builtin || lang !== 'en') return
+    const cacheKey = getTranslationCacheKey(inf.id)
+
+    // 检查缓存
+    if (translationCache.has(cacheKey)) {
+      setTranslations(prev => ({ ...prev, [inf.id]: translationCache.get(cacheKey)! }))
+      return
+    }
+
+    try {
+      const res = await fetch('/api/influencers/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          texts: {
+            tagline: inf.tagline,
+            personality: inf.personality,
+            domains: inf.domains,
+            speaking_style: inf.speaking_style,
+          },
+          targetLang: 'en',
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        translationCache.set(cacheKey, data)
+        setTranslations(prev => ({ ...prev, [inf.id]: data }))
+      }
+    } catch (e) {
+      console.error('Translation failed:', e)
+    }
+  }, [lang])
 
   useEffect(() => {
     fetchInfluencers()
   }, [])
+
+  // 当语言切换到英文时，翻译用户自建网红
+  useEffect(() => {
+    if (lang === 'en') {
+      influencers.filter(i => !i.is_builtin).forEach(translateInfluencer)
+    }
+  }, [lang, influencers, translateInfluencer])
 
   async function fetchInfluencers() {
     setLoading(true)
@@ -42,9 +88,12 @@ export default function InfluencersClient({ lang }: Props) {
   const isFirst = myCount === 0
 
   const filtered = influencers.filter(i => {
+    const q = search.toLowerCase()
     const matchSearch = !search ||
-      i.name.toLowerCase().includes(search.toLowerCase()) ||
-      i.tagline?.toLowerCase().includes(search.toLowerCase())
+      i.name.toLowerCase().includes(q) ||
+      i.tagline?.toLowerCase().includes(q) ||
+      i.personality?.some(p => p.toLowerCase().includes(q)) ||
+      i.domains?.some(d => d.toLowerCase().includes(q))
     const matchType = typeFilter === 'all' || i.type === typeFilter
     return matchSearch && matchType
   })
@@ -120,7 +169,7 @@ export default function InfluencersClient({ lang }: Props) {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="aspect-[3/4] rounded-xl bg-zinc-800 animate-pulse" />
           ))}
@@ -131,33 +180,26 @@ export default function InfluencersClient({ lang }: Props) {
           {mine.length > 0 && (
             <section className="mb-8">
               <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">{t(lang, UI.influencers.mySection)}</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {mine.map(inf => (
-                  <InfluencerCard
-                    key={inf.id}
-                    influencer={localizeInfluencer(inf, lang)}
-                    onEdit={setEditTarget}
-                    onDelete={handleDelete}
-                  />
-                ))}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {mine.map(inf => {
+                  // 应用动态翻译
+                  const translated = translations[inf.id]
+                  const localizedInf = translated && lang === 'en'
+                    ? { ...inf, ...translated }
+                    : inf
+                  return (
+                    <InfluencerCard
+                      key={inf.id}
+                      influencer={localizedInf}
+                      onEdit={setEditTarget}
+                      onDelete={handleDelete}
+                    />
+                  )
+                })}
               </div>
             </section>
           )}
 
-          {/* 新建入口（我的网红为空时显示在顶部） */}
-          {mine.length === 0 && !search && (
-            <section className="mb-8">
-              <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">{t(lang, UI.influencers.mySection)}</h2>
-              <button
-                onClick={() => setShowCreate(true)}
-                className="w-40 aspect-[3/4] rounded-xl border-2 border-dashed border-zinc-700 hover:border-violet-500 flex flex-col items-center justify-center gap-2 text-zinc-600 hover:text-violet-400 transition-colors"
-              >
-                <Plus size={24} />
-                <span className="text-xs">{t(lang, UI.influencers.createBtn)}</span>
-                <span className="text-xs text-zinc-700">{t(lang, UI.influencers.firstFree)}</span>
-              </button>
-            </section>
-          )}
 
           {/* 内置网红（按分类分组） */}
           {builtinByType.map(group => (
@@ -165,7 +207,7 @@ export default function InfluencersClient({ lang }: Props) {
               <h2 className="text-xs font-medium text-zinc-600 uppercase tracking-wider mb-3">
                 {group.label}
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {group.items.map(inf => (
                   <InfluencerCard key={inf.id} influencer={localizeInfluencer(inf, lang)} />
                 ))}

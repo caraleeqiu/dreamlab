@@ -120,9 +120,24 @@ export function localizeInfluencer<T extends {
   domains: string[]
   speaking_style?: string
   forbidden?: string
+  is_builtin?: boolean
+  translations?: { en?: { tagline?: string; personality?: string[]; domains?: string[]; speaking_style?: string } }
 }>(inf: T, lang: string): T {
   if (lang !== 'en') return inf
+
+  // 内置网红使用预定义翻译
   const en = INFLUENCER_EN[inf.slug]
-  if (!en) return inf
-  return { ...inf, ...en }
+  if (en) return { ...inf, ...en }
+
+  // 用户自建网红使用存储的翻译或返回原文
+  if (inf.translations?.en) {
+    return { ...inf, ...inf.translations.en }
+  }
+
+  return inf
+}
+
+/** 用于前端缓存翻译的 key */
+export function getTranslationCacheKey(influencerId: number | string): string {
+  return `influencer_translation_${influencerId}`
 }

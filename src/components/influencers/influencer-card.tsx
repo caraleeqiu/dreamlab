@@ -113,9 +113,13 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
         )}
 
         {/* 头像 */}
-        <div className="aspect-[3/4] bg-zinc-800 relative">
+        <div className="aspect-[3/4] bg-zinc-800 relative overflow-hidden">
           {influencer.frontal_image_url ? (
-            <Image src={influencer.frontal_image_url} alt={influencer.name} fill className="object-cover" />
+            influencer.frontal_image_url.startsWith('data:') ? (
+              <img src={influencer.frontal_image_url} alt={influencer.name} className="absolute inset-0 w-full h-full object-cover" />
+            ) : (
+              <Image src={influencer.frontal_image_url} alt={influencer.name} fill className="object-cover" />
+            )
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-4xl text-zinc-700">
               {influencer.type === 'animal' ? '🐾' :
@@ -153,7 +157,11 @@ export default function InfluencerCard({ influencer, onEdit, onDelete }: Props) 
             <DialogTitle className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-zinc-800 relative overflow-hidden shrink-0">
                 {influencer.frontal_image_url ? (
-                  <Image src={influencer.frontal_image_url} alt={influencer.name} fill className="object-cover" />
+                  influencer.frontal_image_url.startsWith('data:') ? (
+                    <img src={influencer.frontal_image_url} alt={influencer.name} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <Image src={influencer.frontal_image_url} alt={influencer.name} fill className="object-cover" />
+                  )
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-xl">
                     {influencer.type === 'animal' ? '🐾' : influencer.type === 'virtual' ? '🎭' : influencer.type === 'brand' ? '🏷️' : '🧑'}

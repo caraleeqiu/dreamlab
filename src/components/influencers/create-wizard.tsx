@@ -21,13 +21,44 @@ const TYPE_OPTIONS: { value: InfluencerType; label: string; emoji: string; desc:
 const PERSONALITY_OPTIONS = ['一针见血', '冷幽默', '零废话', '真诚', '毒舌', '阳光', '严肃', '活泼', '知识型', '幽默', '感性', '理性', '治愈', '霸气', '萌系']
 const DOMAIN_OPTIONS = ['科技', '美妆', '生活vlog', '情感', '娱乐', '财经', '健康', '美食', '旅行', '游戏', '时尚', '教育', '汽车', '宠物', '体育']
 const VOICE_OPTIONS = [
-  { value: 'dry low-key British female voice, low pitch, slow deliberate pace, minimal emotional variation, slightly wry', label: '低冷英式女声' },
-  { value: 'warm American female voice, medium pace, friendly and trustworthy, slight smile in tone', label: '温暖美式女声' },
-  { value: 'bright American female voice, fast-paced, casual and enthusiastic, slight vocal fry', label: '活力美式女声' },
-  { value: 'deep American male voice, slow deliberate pace, minimal words, weighted pauses', label: '低沉男声' },
-  { value: 'earnest American male voice, medium-high pitch, formal and serious delivery', label: '正式男声' },
-  { value: 'high-energy American male voice, fast-paced, full of enthusiasm', label: '高能男声' },
+  { value: 'dry low-key British female voice, low pitch, slow deliberate pace, minimal emotional variation, slightly wry', label: '低冷英式女声', traits: ['冷幽默', '零废话', '严肃', '理性'] },
+  { value: 'warm American female voice, medium pace, friendly and trustworthy, slight smile in tone', label: '温暖美式女声', traits: ['真诚', '治愈', '感性'] },
+  { value: 'bright American female voice, fast-paced, casual and enthusiastic, slight vocal fry', label: '活力美式女声', traits: ['阳光', '活泼', '幽默'] },
+  { value: 'deep American male voice, slow deliberate pace, minimal words, weighted pauses', label: '低沉男声', traits: ['霸气', '严肃', '一针见血'] },
+  { value: 'earnest American male voice, medium-high pitch, formal and serious delivery', label: '正式男声', traits: ['知识型', '严肃', '理性'] },
+  { value: 'high-energy American male voice, fast-paced, full of enthusiasm', label: '高能男声', traits: ['活泼', '幽默', '阳光'] },
 ]
+
+// 根据性格推荐声线
+function getRecommendedVoice(personality: string[]): typeof VOICE_OPTIONS[number] | null {
+  if (personality.length === 0) return null
+  let bestMatch = VOICE_OPTIONS[0]
+  let bestScore = 0
+  for (const opt of VOICE_OPTIONS) {
+    const score = personality.filter(p => opt.traits.includes(p)).length
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = opt
+    }
+  }
+  return bestScore > 0 ? bestMatch : null
+}
+
+// 检测声线与性格是否匹配
+function checkVoiceMismatch(personality: string[], voiceValue: string): string | null {
+  if (personality.length === 0) return null
+  const voice = VOICE_OPTIONS.find(v => v.value === voiceValue)
+  if (!voice) return null // 自定义声线不检查
+
+  const matched = personality.filter(p => voice.traits.includes(p)).length
+  if (matched === 0 && personality.length >= 2) {
+    const recommended = getRecommendedVoice(personality)
+    if (recommended && recommended.value !== voiceValue) {
+      return `当前声线与性格可能不太搭配，推荐：${recommended.label}`
+    }
+  }
+  return null
+}
 
 interface Props {
   onSuccess: (inf: Influencer) => void
@@ -45,6 +76,7 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
   const [imageUrl, setImageUrl] = useState(editInfluencer?.frontal_image_url || '')
   const [ttsUrl, setTtsUrl] = useState('')
   const [imagePrompt, setImagePrompt] = useState('')
+  const [imageError, setImageError] = useState('')
 
   const [form, setForm] = useState({
     type: (editInfluencer?.type ?? '') as InfluencerType | '',
@@ -68,14 +100,26 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
   async function generateImage() {
     if (!imagePrompt) return
     setGeneratingImg(true)
+    setImageError('')
     try {
       const res = await fetch('/api/influencers/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: imagePrompt, is_first: isFirst }),
+        body: JSON.stringify({ prompt: imagePrompt, is_first: isFirst, type: form.type }),
       })
       const data = await res.json()
-      if (data.url) setImageUrl(data.url)
+      if (!res.ok) {
+        setImageError(data.error || '生成失败，请重试')
+        return
+      }
+      if (data.url) {
+        setImageUrl(data.url)
+      } else {
+        setImageError('未能生成图片，请尝试不同的描述')
+      }
+    } catch (err) {
+      setImageError('网络错误，请重试')
+      console.error('generateImage error:', err)
     } finally {
       setGeneratingImg(false)
     }
@@ -130,17 +174,16 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
   return (
     <div className="flex flex-col h-full">
       {/* 步骤指示器 */}
-      <div className="flex items-center gap-0 mb-8">
+      <div className="flex items-center justify-between mb-6">
         {STEPS.map((s, i) => (
-          <div key={s} className="flex items-center">
+          <div key={s} className="flex flex-col items-center flex-1">
             <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-medium transition-colors
               ${i < step ? 'bg-violet-600 text-white' :
                 i === step ? 'bg-violet-600 text-white ring-2 ring-violet-400/30' :
                 'bg-zinc-800 text-zinc-500'}`}>
               {i < step ? '✓' : i + 1}
             </div>
-            <span className={`ml-1.5 text-xs ${i === step ? 'text-white' : 'text-zinc-500'}`}>{s}</span>
-            {i < STEPS.length - 1 && <div className="w-6 h-px bg-zinc-700 mx-2" />}
+            <span className={`mt-1 text-xs text-center ${i === step ? 'text-white' : 'text-zinc-600'}`}>{s}</span>
           </div>
         ))}
       </div>
@@ -187,6 +230,25 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
                 </button>
               ))}
             </div>
+            {/* 自定义性格标签 */}
+            {form.personality.length < 3 && (
+              <div className="flex gap-2 mt-2">
+                <Input
+                  placeholder="自定义标签..."
+                  className="bg-zinc-800 border-zinc-700 text-white text-xs h-8 flex-1"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = (e.target as HTMLInputElement).value.trim()
+                      if (val && !form.personality.includes(val) && form.personality.length < 3) {
+                        setForm(f => ({ ...f, personality: [...f.personality, val] }))
+                        ;(e.target as HTMLInputElement).value = ''
+                      }
+                    }
+                  }}
+                />
+                <span className="text-xs text-zinc-600 self-center">回车添加</span>
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-zinc-400">主领域 * <span className="text-zinc-600 font-normal">（最多3个）</span></Label>
@@ -199,6 +261,25 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
                 </button>
               ))}
             </div>
+            {/* 自定义领域标签 */}
+            {form.domains.length < 3 && (
+              <div className="flex gap-2 mt-2">
+                <Input
+                  placeholder="自定义领域..."
+                  className="bg-zinc-800 border-zinc-700 text-white text-xs h-8 flex-1"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = (e.target as HTMLInputElement).value.trim()
+                      if (val && !form.domains.includes(val) && form.domains.length < 3) {
+                        setForm(f => ({ ...f, domains: [...f.domains, val] }))
+                        ;(e.target as HTMLInputElement).value = ''
+                      }
+                    }
+                  }}
+                />
+                <span className="text-xs text-zinc-600 self-center">回车添加</span>
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-zinc-400">口头禅 <span className="text-zinc-600 font-normal">（最多3个，选填）</span></Label>
@@ -220,45 +301,145 @@ export default function CreateWizard({ onSuccess, onClose, isFirst, editInfluenc
       {/* Step 2: 形象 */}
       {step === 2 && (
         <div className="space-y-4">
+          {/* 上传图片 */}
           <div className="space-y-2">
-            <Label className="text-zinc-400">描述形象，AI帮你生成</Label>
+            <Label className="text-zinc-400">方式一：上传图片</Label>
+            <label className="flex items-center justify-center w-full h-24 rounded-xl border-2 border-dashed border-zinc-700 hover:border-violet-500 cursor-pointer transition-colors">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const formData = new FormData()
+                  formData.append('file', file)
+                  formData.append('is_first', String(isFirst))
+                  try {
+                    const res = await fetch('/api/influencers/upload-image', { method: 'POST', body: formData })
+                    const data = await res.json()
+                    if (data.url) setImageUrl(data.url)
+                  } catch (err) { console.error(err) }
+                }}
+              />
+              <div className="text-center">
+                <Upload size={20} className="mx-auto text-zinc-500 mb-1" />
+                <span className="text-xs text-zinc-500">点击上传图片</span>
+              </div>
+            </label>
+          </div>
+
+          {/* 分隔线 */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-zinc-700" />
+            <span className="text-xs text-zinc-600">或</span>
+            <div className="flex-1 h-px bg-zinc-700" />
+          </div>
+
+          {/* AI 生成 */}
+          <div className="space-y-2">
+            <Label className="text-zinc-400">方式二：AI 生成</Label>
             <Textarea value={imagePrompt} onChange={e => setImagePrompt(e.target.value)}
-              placeholder="例：A sleek black cat with a small gold collar and name tag, sitting upright, minimal aesthetic, studio lighting, 9:16"
+              placeholder={form.type === 'human'
+                ? "例：28岁东亚女性，黑色长直发，淡妆，自信微笑，穿米色毛衣，半身照，室内自然光从左侧照入"
+                : "例：A sleek black cat with gold collar, sitting upright, studio lighting, 9:16"}
               className="bg-zinc-800 border-zinc-700 text-white resize-none" rows={3} />
             <Button onClick={generateImage} disabled={!imagePrompt || generatingImg}
               className="bg-violet-600 hover:bg-violet-700 text-white">
-              {generatingImg ? <><Loader2 size={14} className="animate-spin mr-1.5" />生成中...</> : `AI 生成形象${isFirst ? '（免费）' : '（3积分）'}`}
+              {generatingImg ? <><Loader2 size={14} className="animate-spin mr-1.5" />生成中...</> : `AI 生成${isFirst ? '（免费）' : '（3积分）'}`}
             </Button>
+            {imageError && (
+              <p className="text-xs text-red-400">{imageError}</p>
+            )}
+            {form.type === 'human' && (
+              <div className="text-xs text-zinc-500 space-y-1">
+                <p>系统已自动优化真人图像生成，描述越具体效果越好：</p>
+                <ul className="list-disc list-inside text-zinc-600">
+                  <li>年龄、性别、族裔（如：25岁亚洲女性）</li>
+                  <li>发型、发色（如：黑色短卷发、棕色长直发）</li>
+                  <li>表情神态（如：自信微笑、认真专注）</li>
+                  <li>服装（如：白色衬衫、黑色西装）</li>
+                  <li>光线环境（如：室内柔光、户外自然光）</li>
+                </ul>
+              </div>
+            )}
           </div>
+
+          {/* 预览 */}
           {imageUrl && (
             <div className="relative w-32 h-44 rounded-xl overflow-hidden border border-zinc-700">
-              <img src={imageUrl} alt="生成结果" className="w-full h-full object-cover" />
+              <img src={imageUrl} alt="形象预览" className="w-full h-full object-cover" />
               <button onClick={() => setImageUrl('')}
-                className="absolute top-1 right-1 p-0.5 rounded-full bg-zinc-900/80 text-zinc-400">
-                <X size={12} />
+                className="absolute top-1 right-1 p-1 rounded-full bg-zinc-900/80 text-zinc-400 hover:text-white">
+                <X size={14} />
               </button>
             </div>
           )}
-          <p className="text-xs text-zinc-600">也可以跳过，之后在编辑页重新生成（3积分/次）</p>
+          <p className="text-xs text-zinc-600">也可以跳过，之后在编辑页补充</p>
         </div>
       )}
 
       {/* Step 3: 声音 */}
       {step === 3 && (
         <div className="space-y-4">
+          {/* 推荐提示 */}
+          {(() => {
+            const rec = getRecommendedVoice(form.personality)
+            return rec && form.voice_prompt !== rec.value ? (
+              <div className="p-3 rounded-lg bg-violet-900/20 border border-violet-700/50">
+                <p className="text-xs text-violet-300">
+                  💡 根据性格「{form.personality.join('、')}」，推荐声线：<span className="font-medium">{rec.label}</span>
+                </p>
+              </div>
+            ) : null
+          })()}
           <div className="space-y-2">
             <Label className="text-zinc-400">选择声线</Label>
             <div className="space-y-2">
-              {VOICE_OPTIONS.map(opt => (
-                <button key={opt.value} onClick={() => setForm(f => ({ ...f, voice_prompt: opt.value }))}
-                  className={`w-full px-4 py-3 rounded-lg border text-left text-sm transition-colors
-                    ${form.voice_prompt === opt.value ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}>
-                  {opt.label}
-                </button>
-              ))}
+              {VOICE_OPTIONS.map(opt => {
+                const isRecommended = getRecommendedVoice(form.personality)?.value === opt.value
+                return (
+                  <button key={opt.value} onClick={() => setForm(f => ({ ...f, voice_prompt: opt.value }))}
+                    className={`w-full px-4 py-3 rounded-lg border text-left text-sm transition-colors relative
+                      ${form.voice_prompt === opt.value ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}>
+                    {opt.label}
+                    {isRecommended && <span className="absolute right-3 text-xs text-violet-400">推荐</span>}
+                  </button>
+                )
+              })}
+              {/* 自定义声线选项 */}
+              <button
+                onClick={() => setForm(f => ({ ...f, voice_prompt: 'custom' }))}
+                className={`w-full px-4 py-3 rounded-lg border text-left text-sm transition-colors
+                  ${!VOICE_OPTIONS.some(o => o.value === form.voice_prompt) ? 'border-violet-500 bg-violet-600/10 text-white' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'}`}>
+                ✨ 自定义声线
+              </button>
             </div>
           </div>
-          <Button onClick={generateTts} disabled={generatingTts}
+          {/* 自定义声线输入框 */}
+          {!VOICE_OPTIONS.some(o => o.value === form.voice_prompt) && (
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400">声线描述 <span className="text-zinc-600 font-normal">（英文效果更好）</span></Label>
+              <Textarea
+                value={form.voice_prompt === 'custom' ? '' : form.voice_prompt}
+                onChange={e => setForm(f => ({ ...f, voice_prompt: e.target.value }))}
+                placeholder="例：warm friendly female voice, medium pace, slight smile in tone, Chinese accent"
+                className="bg-zinc-800 border-zinc-700 text-white resize-none text-sm"
+                rows={3}
+              />
+              <p className="text-xs text-zinc-600">描述音色、语速、情绪、口音等特征</p>
+            </div>
+          )}
+          {/* 不匹配警告 */}
+          {(() => {
+            const warning = checkVoiceMismatch(form.personality, form.voice_prompt)
+            return warning ? (
+              <div className="p-2 rounded-lg bg-amber-900/20 border border-amber-700/50">
+                <p className="text-xs text-amber-300">⚠️ {warning}</p>
+              </div>
+            ) : null
+          })()}
+          <Button onClick={generateTts} disabled={generatingTts || !form.voice_prompt || form.voice_prompt === 'custom'}
             className="bg-violet-600 hover:bg-violet-700 text-white">
             {generatingTts ? <><Loader2 size={14} className="animate-spin mr-1.5" />生成中...</> : `预览声音${isFirst ? '（免费）' : '（2积分）'}`}
           </Button>

@@ -72,7 +72,7 @@ export const UI = {
     createBtn:      { zh: '新建网红',                   en: 'New Influencer' },
     createFree:     { zh: '（免费）',                    en: '(Free)' },
     createCost:     { zh: '（10积分）',                  en: '(10 credits)' },
-    searchPlaceholder: { zh: '搜索网红...',              en: 'Search influencers...' },
+    searchPlaceholder: { zh: '搜索名字、标签、领域...',    en: 'Search name, tags, domains...' },
     mySection:      { zh: '我的网红',                   en: 'My Influencers' },
     firstFree:      { zh: '首个免费',                   en: 'First one free' },
     builtinSection: { zh: '官方内置网红 · 免费使用（带水印）', en: 'Official Influencers · Free (watermarked)' },

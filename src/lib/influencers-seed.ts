@@ -1,5 +1,8 @@
 import type { Influencer } from '@/types'
 
+// R2 公开 URL 前缀
+const R2_BASE = 'https://pub-d322045dfd244ecf9fa6fcbe9ca506bc.r2.dev'
+
 // 内置网红完整档案 — 不存台词，台词由生成流程动态产出
 export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_at'>[] = [
   // ── 动物类 ─────────────────────────────────────────────
@@ -16,7 +19,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: '强制正能量内容・过度热情带货',
     voice_prompt: 'dry low-key British female voice, low pitch, slow deliberate pace, minimal emotional variation, slightly wry',
-    frontal_image_url: 'https://9621e96f2591dcb0c75159bf6c3d21ad.r2.cloudflarestorage.com/dreamlab-assets/influencers/sable/sable_front.png',
+    frontal_image_url: `${R2_BASE}/influencers/sable_front.png`,
   },
   {
     slug: 'miso',
@@ -31,7 +34,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'supportive',
     forbidden: '悲伤黑暗内容・需要严肃的场合',
     voice_prompt: 'earnest American male voice, medium-high pitch, formal and serious delivery, occasional dramatic emphasis, deadpan gold-line delivery',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/miso_front.png`,
   },
   // ── 真人类 ─────────────────────────────────────────────
   {
@@ -47,7 +50,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: '不做诊断或处方类表达（"你应该吃这个药"）・不替代医生建议（"这样做就能治好"）・政治立场。可以：解释机制、分享研究结论、消费级健康产品测评',
     voice_prompt: 'warm American female voice, medium pace, friendly and trustworthy, slight smile in tone, clear articulation',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/quinn_front.png`,
   },
   {
     slug: 'ellie',
@@ -62,7 +65,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'supportive',
     forbidden: '负面黑暗内容・争议政治话题',
     voice_prompt: 'bright American female voice, fast-paced, casual and enthusiastic, slight vocal fry, lots of energy',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/ellie_front.png`,
   },
   {
     slug: 'aria',
@@ -77,7 +80,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: '搞笑无厘头内容・轻浮场合',
     voice_prompt: 'rich textured female voice, wide emotional range, controlled and intense, cinematic quality, can shift from whisper to power',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/aria_front.png`,
   },
   {
     slug: 'kai',
@@ -92,7 +95,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: '卖萌搞笑内容・过度情绪化场面',
     voice_prompt: 'deep American male voice, slow deliberate pace, minimal words, weighted pauses, low frequency, commanding presence',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/kai_front.png`,
   },
   // ── 虚拟角色类 ─────────────────────────────────────────
   {
@@ -108,7 +111,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: '被说穷・被摸头发・认真工作',
     voice_prompt: 'lazy American male voice, low frequency, drawling pace, occasional sudden bursts of energy, world-weary but sharp',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/gintoki_front.png`,
   },
   {
     slug: 'tanjiro',
@@ -123,7 +126,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'supportive',
     forbidden: '放弃・伤害弱者・冷漠对待他人',
     voice_prompt: 'warm sincere male voice, genuine emotion, occasionally cracking with feeling, hopeful and determined tone',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/tanjiro_front.png`,
   },
   {
     slug: 'atlas',
@@ -138,7 +141,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'supportive',
     forbidden: undefined,
     voice_prompt: 'bright curious male voice, Pixar character quality, light and quick, wonder-filled delivery',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/atlas_front.png`,
   },
   {
     slug: 'luffy',
@@ -153,7 +156,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'supportive',
     forbidden: '抛弃伙伴・复杂策略讨论・被说弱',
     voice_prompt: 'high-energy American male voice, fast-paced, full of enthusiasm, simple and direct, infectious excitement',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/luffy_front.png`,
   },
   {
     slug: 'marin',
@@ -168,7 +171,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: '否定别人的审美・装腔作势的时尚评论・强调价格歧视',
     voice_prompt: 'bright enthusiastic female voice, high energy, fast-paced with sudden emphasis spikes, fashion-forward and expressive, lots of vocal inflection and excitement',
-    frontal_image_url: 'https://9621e96f2591dcb0c75159bf6c3d21ad.r2.cloudflarestorage.com/dreamlab-assets/influencers/marin/marin_front.png',
+    frontal_image_url: `${R2_BASE}/influencers/marin_front.png`,
   },
   {
     slug: 'senku',
@@ -183,7 +186,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: '伪科学・玄学・无数据支撑的情感类表达',
     voice_prompt: 'sharp confident male voice, fast analytical pace, slightly cocky delivery, sounds like the smartest person in the room but keeps it engaging',
-    frontal_image_url: 'https://9621e96f2591dcb0c75159bf6c3d21ad.r2.cloudflarestorage.com/dreamlab-assets/influencers/senku/senku_front.png',
+    frontal_image_url: `${R2_BASE}/influencers/senku_front.png`,
   },
   // ── 品牌IP类（示例2个）──────────────────────────────────
   {
@@ -199,7 +202,7 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'supportive',
     forbidden: '黑暗内容・争论・压力相关',
     voice_prompt: 'soft cute female voice, gentle and warm, slightly high pitch, cheerful and innocent, Korean-adjacent energy',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/loopy_front.png`,
   },
   {
     slug: 'snow-king',
@@ -214,6 +217,22 @@ export const BUILTIN_INFLUENCERS: Omit<Influencer, 'id' | 'user_id' | 'created_a
     chat_style: 'dominant',
     forbidden: undefined,
     voice_prompt: 'deep dramatic male voice, regal and commanding, occasional warm humor, Northern Chinese energy',
-    frontal_image_url: undefined,
+    frontal_image_url: `${R2_BASE}/influencers/snowking_front.png`,
+  },
+  // ── 额外网红（xiaohua, zane）──────────────────────────────
+  {
+    slug: 'xiaohua',
+    name: '小花',
+    is_builtin: true,
+    type: 'animal',
+    tagline: '邻家小动物的日常分享，真实又可爱',
+    personality: ['亲和', '真实', '生活化'],
+    domains: ['日常生活', '美食', '分享'],
+    speaking_style: '像在跟朋友聊天，轻松自然',
+    catchphrases: ['今天给大家分享', '真的超好吃'],
+    chat_style: 'supportive',
+    forbidden: undefined,
+    voice_prompt: 'warm Chinese female voice, gentle pace, natural and friendly, everyday conversational tone',
+    frontal_image_url: `${R2_BASE}/influencers/xiaohua_front.png`,
   },
 ]
