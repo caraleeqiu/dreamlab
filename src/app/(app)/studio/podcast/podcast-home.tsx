@@ -114,7 +114,7 @@ export default function PodcastClient({ lang, credits, influencers, recentJobs, 
       <p className="text-xs text-zinc-600 uppercase tracking-widest mb-3">
         {lang === 'zh' ? '选择创作方式' : 'Choose creation mode'}
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 gap-4 mb-10">
         {MODES.map(m => (
           <button
             key={m.id}
