@@ -37,6 +37,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [regenSubmitting, setRegenSubmitting] = useState(false)
   const [regenError, setRegenError] = useState('')
   const [regenSuccess, setRegenSuccess] = useState<number | null>(null) // new job id
+  // Manual status polling
+  const [polling, setPolling] = useState(false)
+  const [pollResult, setPollResult] = useState<string | null>(null)
 
   async function generatePublishKit() {
     if (!job) return
@@ -51,6 +54,36 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setPublishKit(data)
     } finally {
       setLoadingKit(false)
+    }
+  }
+
+  // Manual poll Kling for task status
+  async function pollStatus() {
+    if (!job) return
+    setPolling(true)
+    setPollResult(null)
+    try {
+      const res = await fetch('/api/jobs/poll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id }),
+      })
+      const data = await res.json()
+      if (data.results?.length) {
+        const done = data.results.filter((r: { status: string }) => r.status === 'done').length
+        const failed = data.results.filter((r: { status: string }) => r.status === 'failed').length
+        setPollResult(lang === 'zh'
+          ? `更新完成: ${done} 成功, ${failed} 失败`
+          : `Updated: ${done} done, ${failed} failed`)
+        // Refresh job data
+        await fetchJob()
+      } else {
+        setPollResult(lang === 'zh' ? '没有待更新的任务' : 'No pending tasks')
+      }
+    } catch (err) {
+      setPollResult(lang === 'zh' ? '查询失败' : 'Poll failed')
+    } finally {
+      setPolling(false)
     }
   }
 
@@ -257,11 +290,28 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {/* 切片进度 */}
       {job.clips && job.clips.length > 0 && !isDone && (
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-zinc-400 mb-3">
-            {lang === 'zh'
-              ? `切片进度（${job.clips.filter(c => c.status === 'done').length}/${job.clips.length}）`
-              : `Clips (${job.clips.filter(c => c.status === 'done').length}/${job.clips.length})`}
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-zinc-400">
+              {lang === 'zh'
+                ? `切片进度（${job.clips.filter(c => c.status === 'done').length}/${job.clips.length}）`
+                : `Clips (${job.clips.filter(c => c.status === 'done').length}/${job.clips.length})`}
+            </h2>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={pollStatus}
+              disabled={polling}
+              className="h-7 px-3 text-xs border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
+            >
+              {polling
+                ? <Loader2 size={12} className="animate-spin mr-1.5" />
+                : <RefreshCw size={12} className="mr-1.5" />}
+              {lang === 'zh' ? '刷新状态' : 'Refresh'}
+            </Button>
+          </div>
+          {pollResult && (
+            <p className="text-xs text-green-400 mb-2">{pollResult}</p>
+          )}
           <div className="grid grid-cols-5 gap-2">
             {job.clips.map(clip => (
               <div key={clip.id} className={`aspect-video rounded-lg flex items-center justify-center text-xs font-medium
