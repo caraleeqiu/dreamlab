@@ -3,6 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { t, UI } from '@/lib/i18n'
 import type { Language } from '@/types'
 
+// AI Visual Tutor - Gemini Challenge 核心功能
+const TUTOR_LINES = [
+  { href: '/studio/snap', key: 'snap' as const, emoji: '📷', creditClass: 'text-emerald-400' },
+  { href: '/studio/live', key: 'live' as const, emoji: '🎙️', creditClass: 'text-emerald-400' },
+]
+
 const REMIX_LINES = [
   { href: '/studio/remix', key: 'remix' as const, emoji: '✂️', creditClass: 'text-violet-400' },
 ]
@@ -64,6 +70,21 @@ export default async function StudioPage() {
         <h1 className="text-2xl font-bold text-white">{t(lang, UI.studio.title)}</h1>
         <p className="text-sm text-zinc-500 mt-0.5">{t(lang, UI.studio.subtitle)}</p>
       </div>
+
+      {/* AI Visual Tutor - 核心功能 */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-xs font-medium text-emerald-500 uppercase tracking-wider">
+            {lang === 'zh' ? '🎯 AI Visual Tutor' : '🎯 AI Visual Tutor'}
+          </h2>
+          <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">
+            {lang === 'zh' ? 'Gemini 比赛' : 'Gemini Challenge'}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {TUTOR_LINES.map(line => <LineCard key={line.key} line={line} lang={lang} />)}
+        </div>
+      </section>
 
       {/* 看灵感 */}
       <section className="mb-8">

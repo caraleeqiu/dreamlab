@@ -62,6 +62,16 @@ export const UI = {
         desc:  { zh: '贴URL，AI提炼内容，一键生成视频', en: 'Paste a URL, AI extracts content and generates video' },
         credit:{ zh: '15积分', en: '15 credits' },
       },
+      snap: {
+        title: { zh: '拍照问答',          en: 'Snap & Learn' },
+        desc:  { zh: '拍照提问，AI秒懂原理，生成教学视频', en: 'Take a photo, ask a question, AI explains with video' },
+        credit:{ zh: '15积分', en: '15 credits' },
+      },
+      live: {
+        title: { zh: '实时对话',          en: 'Live Tutor' },
+        desc:  { zh: '开摄像头实时对话，AI看见就懂', en: 'Real-time camera chat, AI sees and explains' },
+        credit:{ zh: '15积分', en: '15 credits' },
+      },
     },
   },
 
