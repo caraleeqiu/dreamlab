@@ -49,7 +49,7 @@ export function parseGenerateCommand(text: string): {
   shouldGenerate: boolean;
   params?: { topic: string; style: string; duration: number };
 } {
-  const match = text.match(/\[GENERATE_VIDEO\](.*?)\[\/GENERATE_VIDEO\]/s);
+  const match = text.match(/\[GENERATE_VIDEO\]([\s\S]*?)\[\/GENERATE_VIDEO\]/);
   if (!match) {
     return { shouldGenerate: false };
   }

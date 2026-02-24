@@ -14,6 +14,7 @@ export const CREDIT_COSTS = {
   create_influencer:        10,
   generate_influencer_image: 3,
   generate_influencer_tts:   2,
+  snap:                     15,  // Visual Tutor - snap photo to video
 } as const
 
 // ─── 充值套餐配置 ─────────────────────────────────────────────────────────────
