@@ -4,8 +4,8 @@ import { createLogger } from './logger'
 const logger = createLogger('imagen')
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
-// gemini-2.0-flash-exp supports responseModalities: ["IMAGE"]
-const IMAGEN_MODEL = 'gemini-2.0-flash-exp'
+// gemini-3.1-flash-image-preview supports responseModalities: ["IMAGE"]
+const IMAGEN_MODEL = 'gemini-3.1-flash-image-preview'
 
 /**
  * Generate a storyboard frame image via Gemini 2.0 Flash image generation.

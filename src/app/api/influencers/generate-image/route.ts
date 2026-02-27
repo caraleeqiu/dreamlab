@@ -36,9 +36,9 @@ export async function POST(request: NextRequest) {
     enhancedPrompt = `${prompt}. IMPORTANT: Center the subject with clear margins around it, leave 10% safe space on all edges, do not crop at frame boundaries.`
   }
 
-  // 使用 Gemini 2.0 Flash Image Generation 模型
+  // 使用 Gemini 3.1 Flash Image Preview 模型
   const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
